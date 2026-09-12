@@ -1,0 +1,6 @@
+{
+  "name": "Remix Gemini Runner",
+  "description": "Sprint down the basketball court in bright daylight arena mode, dribbling, dodging defenders, and slamming dunks in this athletic basketball runner.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
