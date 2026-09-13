@@ -409,7 +409,7 @@ export const LevelManager: React.FC = () => {
     }
   });
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (status !== GameStatus.PLAYING) return;
 
     // Apply timeScale for slow-motion cinematic replays
