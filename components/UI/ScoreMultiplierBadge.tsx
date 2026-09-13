@@ -18,9 +18,30 @@ interface TierConfig {
 }
 
 export const ScoreMultiplierBadge: React.FC = () => {
-  const { dribbleStreak, dribbleMultiplier, status } = useStore();
+  const { dribbleStreak, dribbleMultiplier, status, lastDribbleTime, resetDribbleStreak } = useStore();
   const [pulse, setPulse] = useState(false);
   const [recentBounce, setRecentBounce] = useState(false);
+  const [drain, setDrain] = useState(1);
+  const [overdue, setOverdue] = useState(false);
+
+  // Combo grace timer: combo drains and resets if the player stops dribbling
+  useEffect(() => {
+    if ((status !== 'PLAYING' && status !== 'PAUSED') || dribbleStreak <= 0) {
+      setDrain(1);
+      setOverdue(false);
+      return;
+    }
+    const id = setInterval(() => {
+      const elapsed = Date.now() - lastDribbleTime;
+      const ratio = 1 - elapsed / 1500;
+      setDrain(Math.max(0, Math.min(1, ratio)));
+      setOverdue(elapsed >= 1200);
+      if (elapsed >= 1500) {
+        resetDribbleStreak();
+      }
+    }, 120);
+    return () => clearInterval(id);
+  }, [status, dribbleStreak, lastDribbleTime, resetDribbleStreak]);
 
   // Trigger pulse whenever dribble streak increments or on floor bounce
   useEffect(() => {
@@ -137,23 +158,26 @@ export const ScoreMultiplierBadge: React.FC = () => {
     >
       {/* Outer Radiant Heat Aura Glow */}
       <div
-        className={`absolute -inset-1 rounded-2xl blur-md opacity-75 transition-all duration-500 ${
+        className={`absolute -inset-1 blur-md opacity-75 transition-all duration-500 ${
           dribbleMultiplier >= 4 ? 'animate-pulse' : ''
         }`}
         style={{
           backgroundColor: config.accentColor,
           opacity: Math.min(0.85, 0.25 + dribbleMultiplier * 0.12),
+          clipPath: 'polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
         }}
       />
 
       {/* Main Multiplier Card */}
       <div
         id="score-multiplier-card"
-        className={`relative flex items-center gap-3 px-3.5 py-2 rounded-2xl backdrop-blur-md bg-slate-950/85 border ${config.borderColor} ${config.glowStyle} transition-all duration-300 select-none`}
+        className={`relative flex items-center gap-3 px-3.5 py-2 bg-gradient-to-b from-[#0f1535]/95 to-[#070b20]/98 border ${config.borderColor} ${config.glowStyle} transition-all duration-300 select-none`}
+        style={{ clipPath: 'polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' }}
       >
         {/* Animated Multiplier Number Badge */}
         <div
-          className={`flex items-center justify-center min-w-[50px] h-[50px] rounded-xl font-athletic text-3xl font-black ${config.badgeBg} ${config.textColor} border border-white/20 relative overflow-hidden`}
+          className={`flex items-center justify-center min-w-[50px] h-[50px] font-athletic text-3xl font-black ${config.badgeBg} ${config.textColor} border border-white/20 relative overflow-hidden`}
+          style={{ clipPath: 'polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
         >
           {/* Subtle diagonal shine effect */}
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/15 to-transparent pointer-events-none" />
@@ -178,24 +202,24 @@ export const ScoreMultiplierBadge: React.FC = () => {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1">
               <Zap size={13} className={config.textColor} />
-              <span className={`text-xs font-black tracking-wider uppercase ${config.textColor}`}>
+              <span className={`text-xs font-black tracking-widest uppercase font-cyber ${config.textColor}`}>
                 {config.name}
               </span>
             </div>
-            <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-1.5 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-1.5 py-0.5 font-mono">
               {dribbleStreak} DRIBBLES
             </span>
           </div>
 
           {/* Progress bar to next multiplier tier */}
           <div className="w-full mt-1.5">
-            <div className="flex justify-between text-[9px] font-semibold text-slate-400 mb-0.5">
-              <span>{dribbleMultiplier >= 8 ? 'MAX MULTIPLIER' : 'NEXT MULTIPLIER'}</span>
+            <div className="flex justify-between text-[9px] font-semibold text-slate-400 mb-0.5 uppercase tracking-wider">
+              <span>{dribbleMultiplier >= 8 ? 'Max Multiplier' : 'Next Multiplier'}</span>
               <span>{dribbleMultiplier >= 8 ? 'MAX' : `${Math.round(progress.pct)}%`}</span>
             </div>
-            <div className="w-full h-1.5 bg-slate-800/80 rounded-full overflow-hidden border border-white/10">
+            <div className="meter-bar w-full h-1.5">
               <div
-                className="h-full rounded-full transition-all duration-200"
+                className="h-full transition-all duration-200"
                 style={{
                   width: `${progress.pct}%`,
                   backgroundColor: config.accentColor,
@@ -204,12 +228,32 @@ export const ScoreMultiplierBadge: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Combo grace drain bar */}
+          {lastDribbleTime > 0 && drain < 1 && (
+            <div className="mt-1">
+              <div className={`flex justify-between text-[9px] font-bold uppercase tracking-wider ${overdue ? 'text-red-400 anim-blink' : 'text-slate-500'}`}>
+                <span>Combo</span>
+                <span>{overdue ? 'Fading!' : `${Math.round(drain * 100)}%`}</span>
+              </div>
+              <div className="meter-bar w-full h-1 mt-0.5">
+                <div
+                  className="h-full transition-all duration-150"
+                  style={{
+                    width: `${drain * 100}%`,
+                    backgroundColor: overdue ? '#ef4444' : config.accentColor,
+                    boxShadow: `0 0 6px ${overdue ? '#ef4444' : config.accentColor}`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Dynamic Multiplier Perks indicator */}
         <div className="hidden sm:flex flex-col items-center justify-center pl-2 border-l border-white/10 text-[10px] font-bold text-emerald-400">
           <TrendingUp size={14} className="mb-0.5 text-emerald-400" />
-          <span>SCORE BOOST</span>
+          <span className="font-cyber uppercase tracking-widest">Score Boost</span>
         </div>
       </div>
     </div>

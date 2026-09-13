@@ -1,0 +1,559 @@
+/* =====================================================================
+   SLAM RUNNER — GAME UI STYLESHEET
+   A broadcast-stadium aesthetic: angled panels, neon glows, scanlines.
+   ===================================================================== */
+
+:root {
+  --court-orange: #ff6b1a;
+  --court-amber: #fbbf24;
+  --court-blue: #1e3a8a;
+  --court-navy: #0b1026;
+  --court-ink: #070a1a;
+  --court-gold: #f5b301;
+  --court-red: #ff3b3b;
+}
+
+html,
+body {
+  background: var(--court-ink);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 50% 0%, #10183a 0%, #070a1a 60%, #02030a 100%)
+    var(--court-ink);
+}
+
+/* ---------------- Text effects ---------------- */
+.text-outline {
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.55);
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.4),
+    0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.text-outline-thin {
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.glow-orange {
+  text-shadow:
+    0 0 8px rgba(255, 107, 26, 0.9),
+    0 0 28px rgba(255, 107, 26, 0.55),
+    0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.glow-amber {
+  text-shadow:
+    0 0 8px rgba(251, 191, 36, 0.95),
+    0 0 30px rgba(251, 191, 36, 0.6),
+    0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* ---------------- Angled panels ---------------- */
+.panel-angle {
+  clip-path: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    0 100%,
+    0 14px
+  );
+}
+.panel-angle-right {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+}
+.panel-bevel {
+  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+}
+.panel-bevel-up {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 12px 100%);
+}
+.panel-clip-top {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 9px, calc(100% - 9px) 100%, 0 100%);
+}
+
+.glass-dark {
+  background: linear-gradient(160deg, rgba(16, 24, 48, 0.92), rgba(7, 10, 26, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 40px rgba(0, 0, 0, 0.55);
+}
+.glass-stadium {
+  background: linear-gradient(180deg, rgba(10, 16, 40, 0.88), rgba(4, 7, 20, 0.92));
+  border: 1px solid rgba(255, 180, 90, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 30px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(255, 107, 26, 0.12);
+}
+
+.border-neon {
+  border: 1px solid rgba(255, 140, 60, 0.5);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 140, 60, 0.12),
+    0 0 18px rgba(255, 107, 26, 0.35);
+}
+
+/* ---------------- Scanline + grain overlays ---------------- */
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+}
+.vignette-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 50%, transparent 55%, rgba(0, 0, 10, 0.55) 100%);
+}
+
+/* ---------------- Game buttons ---------------- */
+.btn-game {
+  position: relative;
+  font-family: "Bebas Neue", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  clip-path: polygon(16px 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
+  transition: transform 0.12s ease, filter 0.15s ease;
+}
+.btn-game:hover {
+  filter: brightness(1.12);
+}
+.btn-game:active {
+  transform: scale(0.97);
+}
+.btn-primary {
+  background: linear-gradient(180deg, #ff8a3d 0%, #f4511a 55%, #d03800 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 30px rgba(255, 90, 20, 0.4),
+    0 0 0 1px rgba(255, 140, 60, 0.6);
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(120, 30, 0, 0.5);
+}
+.btn-primary .btn-shine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: btn-sweep 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes btn-sweep {
+  0% { left: -60%; }
+  60% { left: 130%; }
+  100% { left: 130%; }
+}
+.btn-secondary {
+  background: linear-gradient(180deg, rgba(30, 42, 82, 0.95), rgba(12, 18, 42, 0.98));
+  border: 1px solid rgba(120, 150, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #cfd8ff;
+}
+.btn-ghost {
+  background: transparent;
+  color: rgba(190, 200, 230, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ---------------- HUD elements ---------------- */
+.hud-panel {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.score-ticker {
+  font-variant-numeric: tabular-nums;
+}
+
+.heart-pip {
+  filter: drop-shadow(0 0 6px rgba(255, 60, 60, 0.8));
+}
+.heart-pip-empty {
+  filter: grayscale(1) opacity(0.35);
+}
+
+.meter-bar {
+  position: relative;
+  overflow: hidden;
+  background: rgba(10, 14, 34, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+.meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff6b1a, #ffc53d);
+  box-shadow: 0 0 12px rgba(255, 140, 40, 0.8);
+  transition: width 0.12s linear;
+}
+
+/* ---------------- Keycaps (control hints) ---------------- */
+.keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #2a3052, #141a38);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-bottom-width: 3px;
+  color: #cfd8ff;
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ---------------- Animations ---------------- */
+@keyframes panel-pop {
+  0% { opacity: 0; transform: translateY(18px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.anim-panel-pop { animation: panel-pop 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
+@keyframes banner-strike {
+  0% { opacity: 0; transform: scaleX(0); }
+  100% { opacity: 1; transform: scaleX(1); }
+}
+.anim-strike { animation: banner-strike 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes float-in {
+  0% { opacity: 0; transform: translateY(26px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.anim-float-in { animation: float-in 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.65; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+.anim-pulse-glow { animation: pulse-glow 1.6s ease-in-out infinite; }
+
+@keyframes slam-jam {
+  0% { transform: scale(2.6); opacity: 0; }
+  35% { transform: scale(0.9); opacity: 1; }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.anim-slam-jam { animation: slam-jam 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  45% { opacity: 1; }
+  50% { opacity: 0.35; }
+  55% { opacity: 1; }
+  82% { opacity: 0.6; }
+  86% { opacity: 1; }
+}
+.anim-flicker { animation: flicker 2.6s infinite; }
+
+@keyframes blink-fast {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.15; }
+}
+.anim-blink { animation: blink-fast 1s steps(1) infinite; }
+
+@keyframes damage-flash {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.damage-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(80% 60% at 50% 40%, transparent 40%, rgba(255, 30, 30, 0.55) 100%);
+  animation: damage-flash 0.55s ease-out forwards;
+}
+
+@keyframes showtime-flash {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+.showtime-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translateZ(0);
+  background:
+    radial-gradient(120% 90% at 50% 45%, rgba(255, 215, 0, 0.28) 0%, rgba(255, 120, 20, 0.42) 48%, rgba(150, 40, 0, 0.55) 100%);
+  animation: showtime-flash 0.5s ease-out forwards;
+}
+
+@keyframes hearts-panic {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+.anim-panic { animation: hearts-panic 0.7s ease-in-out infinite; }
+
+/* ---------------- Speed lines ---------------- */
+.speed-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.speed-line {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  border-radius: 2px;
+  animation: speed-streak linear infinite;
+}
+@keyframes speed-streak {
+  from { transform: translateX(110vw); opacity: 0; }
+  12% { opacity: 1; }
+  to { transform: translateX(-10vw); opacity: 0; }
+}
+
+/* ---------------- B-A-S-K-E-T letter chips ---------------- */
+.letter-chip {
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+.letter-chip-collected {
+  animation: chip-collect 0.45s cubic-bezier(0.2, 0.8, 0.3, 1.4);
+}
+@keyframes chip-collect {
+  0% { transform: scale(1) rotate(0); }
+  40% { transform: scale(1.35) rotate(-8deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* ---------------- Range slider (game style) ---------------- */
+input[type="range"].game-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 0;
+  background: linear-gradient(90deg, #ff6b1a, #ffc53d);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  outline: none;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+input[type="range"].game-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 26px;
+  background: linear-gradient(180deg, #fff4e0, #ffb35c);
+  border: 1px solid rgba(120, 40, 0, 0.6);
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 140, 40, 0.8);
+}
+input[type="range"].game-slider::-moz-range-thumb {
+  width: 20px;
+  height: 26px;
+  background: linear-gradient(180deg, #fff4e0, #ffb35c);
+  border: 1px solid rgba(120, 40, 0, 0.6);
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+  cursor: pointer;
+  border-radius: 0;
+}
+
+/* ---------------- Menu splash ---------------- */
+.menu-splash-bg {
+  background:
+    radial-gradient(80% 60% at 50% -10%, rgba(255, 107, 26, 0.30) 0%, transparent 60%),
+    radial-gradient(120% 100% at 50% 120%, rgba(30, 58, 138, 0.42) 0%, transparent 55%),
+    radial-gradient(70% 50% at 80% 20%, rgba(251, 191, 36, 0.10) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(10, 14, 34, 0.78) 0%, rgba(5, 7, 18, 0.86) 60%, rgba(2, 3, 10, 0.92) 100%);
+}
+.menu-court-line {
+  position: absolute;
+  border: 1px solid rgba(255, 160, 80, 0.14);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ---------------- Boot splash ---------------- */
+.boot-splash {
+  background:
+    radial-gradient(90% 70% at 50% 40%, rgba(255, 107, 26, 0.18) 0%, transparent 55%),
+    radial-gradient(120% 100% at 50% 115%, rgba(30, 58, 138, 0.35) 0%, transparent 60%),
+    radial-gradient(60% 40% at 20% 0%, rgba(251, 191, 36, 0.10) 0%, transparent 55%),
+    linear-gradient(180deg, #05060d 0%, #080a18 55%, #04050d 100%);
+  transition: opacity 0.55s ease;
+}
+.boot-splash-fade { opacity: 0; }
+.boot-logo {
+  font-size: clamp(3rem, 10vw, 5.5rem);
+  line-height: 0.95;
+  text-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.55),
+    0 0 34px rgba(255, 107, 26, 0.55),
+    0 0 90px rgba(255, 107, 26, 0.28);
+  letter-spacing: 0.08em;
+}
+.boot-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #f97316, #fbbf24, #fff7ed);
+  box-shadow: 0 0 14px rgba(255, 140, 30, 0.8);
+  width: 0;
+  animation: boot-bar 1.7s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+@keyframes boot-bar {
+  0%   { width: 0%; }
+  55%  { width: 64%; }
+  86%  { width: 92%; }
+  100% { width: 100%; }
+}
+.boot-beam {
+  position: absolute;
+  top: -8%;
+  width: 60px;
+  height: 130%;
+  transform-origin: top center;
+  background: linear-gradient(180deg, rgba(255, 200, 120, 0.16), transparent 80%);
+  animation: boot-beam-sway 4.5s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.boot-beam-l { left: 18%; transform: rotate(-14deg); }
+.boot-beam-r { left: 66%; transform: rotate(12deg); animation-delay: -2s; }
+@keyframes boot-beam-sway {
+  0%   { opacity: 0.4; transform: rotate(-18deg); }
+  100% { opacity: 0.9; transform: rotate(18deg); }
+}
+
+/* ---------------- Shop items ---------------- */
+.shop-item {
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.shop-item:hover { transform: translateY(-4px); }
+.shop-item-buyable { box-shadow: 0 0 22px rgba(255, 107, 26, 0.25); }
+.shop-item-locked { filter: saturate(0.3) brightness(0.65); }
+
+/* Hit-stop-free remainder: force GPU layers for smooth anims */
+.letter-chip,
+.hud-panel,
+.btn-game,
+.meter-fill,
+.heart-pip {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+@media (max-width: 640px) {
+  .panel-angle,
+  .panel-angle-right {
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  }
+}
+
+/* ---------------- 3D Floating Score Popups ----------------
+   Rendered via drei <Html> inside the 3D world. */
+.score-popup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: var(--font-athletic, 'Bungee', 'Impact', sans-serif);
+  font-weight: 900;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.7),
+    0 0 18px currentColor;
+  animation: score-popup-rise 0.95s cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+  transform-origin: center center;
+}
+.score-popup-text {
+  line-height: 1;
+  font-size: 1em;
+  letter-spacing: 0.04em;
+}
+.score-popup-sub {
+  font-family: 'Bungee', 'Impact', sans-serif;
+  font-size: 0.5em;
+  letter-spacing: 0.3em;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.8),
+    0 0 14px currentColor;
+  border: 1px solid currentColor;
+  background: rgba(5, 10, 25, 0.55);
+  padding: 1px 8px;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+@keyframes score-popup-rise {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.7); }
+  12%  { opacity: 1; transform: translateY(0) scale(1.12); }
+  22%  { transform: translateY(-2px) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-26px) scale(1.02); }
+}
+
+/* ---------------- SLAM CAM Dunk Timing Meter ---------------- */
+.dunk-meter {
+  background: rgba(5, 10, 25, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  box-shadow: 0 0 24px rgba(255, 120, 30, 0.35), inset 0 0 0 3px rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.dunk-meter-perfect {
+  background: linear-gradient(180deg, #ffe066, #f59e0b);
+  box-shadow: 0 0 18px rgba(255, 200, 60, 0.9);
+  border-radius: 4px;
+}
+.dunk-meter-good-l,
+.dunk-meter-good-r {
+  background: rgba(255, 165, 40, 0.28);
+}
+.dunk-meter-marker {
+  width: 5px;
+  margin-left: -2.5px;
+  background: linear-gradient(180deg, #ffffff, #ffdd88);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.95);
+  border-radius: 2px;
+}
+
+/* ---------------- Accessibility: reduce motion ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .anim-blink,
+  .anim-panic,
+  .anim-pulse-glow,
+  .anim-flicker,
+  .damage-flash,
+  .showtime-flash,
+  .speed-lines,
+  .heart-pip,
+  .menu-court-line {
+    animation: none !important;
+  }
+  .speed-lines { display: none; }
+  .speed-line { animation: none !important; }
+  .dunk-meter-marker { animation: none !important; }
+  /* Keep essential one-shot transitions, drop the flash overlays entirely */
+  .damage-flash, .showtime-flash { display: none !important; }
+}
