@@ -7,7 +7,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useStore } from '../../store';
-import { LANE_WIDTH, GameStatus } from '../../types';
+import { LANE_WIDTH, GameStatus, SKINS } from '../../types';
 import { audio } from '../System/Audio';
 
 // Physics Constants
@@ -34,6 +34,24 @@ const SNEAKER_SOLE_GEO = new THREE.BoxGeometry(0.19, 0.04, 0.34);
 const BASKETBALL_GEO = new THREE.SphereGeometry(0.24, 24, 24);
 const SHADOW_GEO = new THREE.CircleGeometry(0.55, 32);
 
+// Soft radial contact shadow texture
+const SOFT_SHADOW_TEX = (() => {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  g.addColorStop(0, 'rgba(10, 15, 35, 1)');
+  g.addColorStop(0.45, 'rgba(10, 15, 35, 0.65)');
+  g.addColorStop(0.8, 'rgba(10, 15, 35, 0.16)');
+  g.addColorStop(1, 'rgba(10, 15, 35, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+})();
+
 export const Player: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
@@ -47,7 +65,7 @@ export const Player: React.FC = () => {
   const rightLegRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
 
-  const { status, laneCount, takeDamage, hasDoubleJump, activateImmortality, isImmortalityActive, dribbleStreak, dribbleMultiplier, incrementDribbleStreak } = useStore();
+  const { status, laneCount, takeDamage, hasDoubleJump, activateImmortality, isImmortalityActive, dribbleStreak, dribbleMultiplier, incrementDribbleStreak, skinId, isIntro } = useStore();
 
   const [lane, setLane] = React.useState(0);
   const targetX = useRef(0);
@@ -63,6 +81,10 @@ export const Player: React.FC = () => {
   const jumpsPerformed = useRef(0);
   const spinRotation = useRef(0); // For double jump 360 slam flip
   const dunkFollowThrough = useRef(0); // For downward rim-hang snap on successful dunk
+  const jumpHeld = useRef(false); // Variable jump height
+  const bufferJumpAt = useRef(0); // Input buffering window
+  const impactSquash = useRef(0); // Squash amount after landing
+  const jumpStretch = useRef(0); // Stretch amount on takeoff
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -73,13 +95,14 @@ export const Player: React.FC = () => {
   // Materials
   const materials = useMemo(() => {
     const isFire = isImmortalityActive;
+    const skin = SKINS.find(s => s.id === skinId) || SKINS[0];
     return {
       jersey: new THREE.MeshStandardMaterial({
-        color: isFire ? '#ff7700' : '#1e3a8a', // Team Royal/Navy or Flaming Orange
+        color: isFire ? '#ff7700' : skin.jersey, // Team color or Flaming Orange
         roughness: 0.5,
       }),
       jerseyTrim: new THREE.MeshBasicMaterial({
-        color: isFire ? '#ffff00' : '#ea580c',
+        color: isFire ? '#ffff00' : skin.accent,
       }),
       skin: new THREE.MeshStandardMaterial({
         color: '#c68642', // Warm athlete skin tone
@@ -93,7 +116,7 @@ export const Player: React.FC = () => {
         color: isFire ? '#ffff00' : '#ef4444',
       }),
       shorts: new THREE.MeshStandardMaterial({
-        color: isFire ? '#ea580c' : '#1d4ed8',
+        color: isFire ? '#ea580c' : skin.shorts,
         roughness: 0.6,
       }),
       sneaker: new THREE.MeshStandardMaterial({
@@ -101,7 +124,7 @@ export const Player: React.FC = () => {
         roughness: 0.3,
       }),
       sneakerAccent: new THREE.MeshStandardMaterial({
-        color: '#ea580c',
+        color: isFire ? '#ff4400' : skin.accent,
         roughness: 0.4,
       }),
       sneakerSole: new THREE.MeshStandardMaterial({
@@ -126,11 +149,13 @@ export const Player: React.FC = () => {
       }),
       shadow: new THREE.MeshBasicMaterial({
         color: '#0f172a',
-        opacity: 0.35,
+        opacity: 0.42,
         transparent: true,
+        map: SOFT_SHADOW_TEX,
+        depthWrite: false,
       }),
     };
-  }, [isImmortalityActive]);
+  }, [isImmortalityActive, skinId]);
 
   // Reset State on Game Start
   useEffect(() => {
@@ -175,6 +200,7 @@ export const Player: React.FC = () => {
   // Jump Controller
   const triggerJump = () => {
     const maxJumps = hasDoubleJump ? 2 : 1;
+    jumpStretch.current = 1;
 
     if (!isJumping.current) {
       // First Jump: Soaring Layup / Dunk elevation
@@ -193,21 +219,44 @@ export const Player: React.FC = () => {
 
   // Keyboard controls
   useEffect(() => {
+    const isJumpKey = (key: string) => key === 'ArrowUp' || key === 'w' || key === ' ';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (status !== GameStatus.PLAYING) return;
+      // RUN-IN lock-in: ball is still centralized / hands off until the intro camera settles
+      if (isIntro) return;
       const maxLane = Math.floor(laneCount / 2);
 
       if (e.key === 'ArrowLeft' || e.key === 'a') setLane(l => Math.max(l - 1, -maxLane));
       else if (e.key === 'ArrowRight' || e.key === 'd') setLane(l => Math.min(l + 1, maxLane));
-      else if (e.key === 'ArrowUp' || e.key === 'w') triggerJump();
-      else if (e.key === ' ' || e.key === 'Enter') {
+      else if (isJumpKey(e.key)) {
+        bufferJumpAt.current = performance.now();
+        jumpHeld.current = true;
+        triggerJump();
+        if (e.key === ' ') e.preventDefault(); // Prevent page scroll
+      } else if (e.key === 'Enter') {
         activateImmortality();
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (isJumpKey(e.key)) {
+        jumpHeld.current = false;
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [status, laneCount, hasDoubleJump, activateImmortality]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [status, laneCount, hasDoubleJump, activateImmortality, isIntro]);
+
+  // Cancel hold state if the game leaves PLAYING
+  useEffect(() => {
+    if (status !== GameStatus.PLAYING) jumpHeld.current = false;
+  }, [status]);
 
   // Touch controls
   useEffect(() => {
@@ -218,6 +267,7 @@ export const Player: React.FC = () => {
 
     const handleTouchEnd = (e: TouchEvent) => {
       if (status !== GameStatus.PLAYING) return;
+      if (isIntro) return;
       const deltaX = e.changedTouches[0].clientX - touchStartX.current;
       const deltaY = e.changedTouches[0].clientY - touchStartY.current;
       const maxLane = Math.floor(laneCount / 2);
@@ -226,7 +276,10 @@ export const Player: React.FC = () => {
         if (deltaX > 0) setLane(l => Math.min(l + 1, maxLane));
         else setLane(l => Math.max(l - 1, -maxLane));
       } else if (Math.abs(deltaY) > Math.abs(deltaX) && deltaY < -30) {
+        bufferJumpAt.current = performance.now();
+        jumpHeld.current = true;
         triggerJump();
+        window.setTimeout(() => { jumpHeld.current = false; }, 180);
       } else if (Math.abs(deltaX) < 12 && Math.abs(deltaY) < 12) {
         activateImmortality();
       }
@@ -238,7 +291,7 @@ export const Player: React.FC = () => {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [status, laneCount, hasDoubleJump, activateImmortality]);
+  }, [status, laneCount, hasDoubleJump, activateImmortality, isIntro]);
 
   // Animation Loop
   useFrame((state, delta) => {
@@ -259,16 +312,45 @@ export const Player: React.FC = () => {
 
     // 2. Physics (Jump & Gravity)
     if (isJumping.current) {
+      // Variable jump height: reduced gravity while holding, until apex
+      const gravity = (jumpHeld.current && velocityY.current > 0) ? GRAVITY * 0.5 : GRAVITY;
       groupRef.current.position.y += velocityY.current * effectiveDelta;
-      velocityY.current -= GRAVITY * effectiveDelta;
+      velocityY.current -= gravity * effectiveDelta;
 
       // Floor Landing
       if (groupRef.current.position.y <= 0) {
+        const impact = Math.min(1, Math.abs(velocityY.current) / JUMP_FORCE);
+        const wasAirborne = groupRef.current.position.y > 0.001;
         groupRef.current.position.y = 0;
         isJumping.current = false;
         jumpsPerformed.current = 0;
         velocityY.current = 0;
         if (bodyRef.current) bodyRef.current.rotation.x = 0;
+
+        // Landing squash based on impact force
+        if (wasAirborne && impact > 0.05) {
+          impactSquash.current = Math.max(impactSquash.current, impact * 0.85);
+        }
+
+        // Landing juice: camera dip + dust on meaningful impacts
+        if (wasAirborne && impact > 0.2) {
+          const p = groupRef.current.position;
+          window.dispatchEvent(new CustomEvent('camera-dip', {
+            detail: { intensity: impact * 0.6 }
+          }));
+          window.dispatchEvent(new CustomEvent('player-landed', {
+            detail: { x: p.x, z: p.z, intensity: impact }
+          }));
+        }
+
+        // Input buffering: auto-trigger jump if pressed shortly before landing
+        if (performance.now() - bufferJumpAt.current < 160) {
+          bufferJumpAt.current = 0;
+          audio.playJump(false);
+          isJumping.current = true;
+          jumpsPerformed.current = 1;
+          velocityY.current = JUMP_FORCE;
+        }
       }
 
       // 360 Double Jump Windmill Flip
@@ -361,6 +443,18 @@ export const Player: React.FC = () => {
       }
 
       if (bodyRef.current && jumpsPerformed.current !== 2) bodyRef.current.position.y = 1.1;
+    }
+
+    // 3.5 Squash & Stretch for athletic weight (decay over time, ease back to neutral)
+    impactSquash.current = Math.max(0, impactSquash.current - delta * 5.5);
+    jumpStretch.current = Math.max(0, jumpStretch.current - delta * 4.5);
+    if (bodyRef.current) {
+      const flex = 1 + jumpStretch.current * 0.32 - impactSquash.current * 0.42;
+      const targetY = Math.max(0.55, flex);
+      const targetXZ = Math.max(0.7, 1 - (targetY - 1) * 0.7);
+      bodyRef.current.scale.x = THREE.MathUtils.lerp(bodyRef.current.scale.x, targetXZ, effectiveDelta * 12);
+      bodyRef.current.scale.z = THREE.MathUtils.lerp(bodyRef.current.scale.z, targetXZ, effectiveDelta * 12);
+      bodyRef.current.scale.y = THREE.MathUtils.lerp(bodyRef.current.scale.y, targetY, effectiveDelta * 12);
     }
 
     // 4. Dynamic Court Shadow
