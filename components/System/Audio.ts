@@ -556,6 +556,37 @@ export class AudioController {
     // Crowd groan / silence
     ambientAudio.onGameStatusChange(GameStatus.GAME_OVER);
   }
+  private bgmAudio: HTMLAudioElement | null = null;
+  private bgmSource: MediaElementAudioSourceNode | null = null;
+
+  playBGM(url: string) {
+    this.init();
+    if (!this.ctx || !this.masterGain) return;
+    if (this.bgmAudio?.getAttribute('src') === url) {
+      void this.bgmAudio.play().catch(() => {});
+      return;
+    }
+    this.stopBGM();
+    const track = new Audio(url);
+    track.loop = true;
+    track.volume = 0.35;
+    this.bgmAudio = track;
+    this.bgmSource = this.ctx.createMediaElementSource(track);
+    this.bgmSource.connect(this.masterGain);
+    // A blocked autoplay attempt is retried on the next user interaction.
+    void track.play().catch(() => {});
+  }
+
+  stopBGM() {
+    if (this.bgmAudio) {
+      this.bgmAudio.pause();
+      this.bgmAudio.removeAttribute('src');
+      this.bgmAudio.load();
+      this.bgmAudio = null;
+    }
+    this.bgmSource?.disconnect();
+    this.bgmSource = null;
+  }
 }
 
 export const audio = new AudioController();

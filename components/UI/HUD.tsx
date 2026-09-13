@@ -14,6 +14,7 @@ import { ambientAudio } from '../System/AmbientAudio';
 import { crowdAudioController } from '../System/CrowdAudioController';
 import { ScoreMultiplierBadge } from './ScoreMultiplierBadge';
 import { PauseMenu } from './PauseMenu';
+import { OpportunityIntro } from './OpportunityIntro';
 
 // Animated score count-up (quick tween on every score change)
 const AnimatedNumber: React.FC<{ value: number; className?: string; id?: string }> = ({ value, className, id }) => {
@@ -360,11 +361,21 @@ const MenuHero: React.FC<{ skinId: string }> = ({ skinId }) => {
 
 const MenuScreen: React.FC<{ startGame: () => void; isMuted: boolean; onToggleMute: (e: React.MouseEvent) => void }> = ({ startGame, isMuted, onToggleMute }) => {
   const { skinId, setSkin, bestDistance, dailyBest, playDailyChallenge } = useStore();
+  const [showBriefing, setShowBriefing] = useState(() => {
+    try { return localStorage.getItem('sportbiz-briefing-seen') !== '1'; } catch { return true; }
+  });
+  const finishBriefing = () => {
+    audio.playClick();
+    try { localStorage.setItem('sportbiz-briefing-seen', '1'); } catch { /* Storage is optional. */ }
+    setShowBriefing(false);
+  };
   const unlockedPref = bestDistance;
   const unlockedSkins = SKINS.filter(s => unlockedPref >= s.unlockAtBest);
 
+  if (showBriefing) return <OpportunityIntro onComplete={finishBriefing} />;
+
   return (
-    <div id="menu-screen" className="menu-splash-bg scanlines absolute inset-0 flex items-center justify-center z-[100] p-4 pointer-events-auto overflow-hidden">
+    <div id="menu-screen" className="locker-menu scanlines absolute inset-0 flex items-center justify-center z-[100] p-4 pointer-events-auto overflow-y-auto">
       <MenuHero skinId={skinId} />
       {/* Animated court circle decorations */}
       <div className="menu-court-line w-[130vw] h-[130vw] -top-[115vw] left-1/2 -translate-x-1/2" />
@@ -374,6 +385,7 @@ const MenuScreen: React.FC<{ startGame: () => void; isMuted: boolean; onToggleMu
       <div className="vignette-overlay" />
 
       <div className="relative w-full max-w-lg anim-panel-pop">
+        <button className="briefing-replay" onClick={() => setShowBriefing(true)}>SPORTBIZ / EXPLORE SPORT OPPORTUNITIES ↗</button>
         {/* Top badge */}
         <div className="flex justify-center mb-2">
           <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-orange-500/20 border border-orange-400/40 text-orange-300 text-[11px] font-cyber font-bold tracking-[0.35em] uppercase">

@@ -1,0 +1,1 @@
+arena-pulse.wav is an original procedurally composed 112 BPM instrumental loop created for SportBiz. No third-party samples. Mono PCM, 22050 Hz. Vite copies public/audio into dist/audio unchanged. Music follows arena status and uses the shared master volume.

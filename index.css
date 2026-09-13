@@ -559,3 +559,23 @@ input[type="range"].game-slider::-moz-range-thumb {
   /* Keep essential one-shot transitions, drop the flash overlays entirely */
   .damage-flash, .showtime-flash { display: none !important; }
 }
+/* Arena briefing: the live 3D court remains visible through the interface. */
+.opportunity-intro { position:absolute; inset:0; z-index:110; overflow:auto; color:#f6f8ff; background:linear-gradient(90deg,rgba(5,10,20,.97),rgba(5,10,20,.76) 48%,rgba(5,10,20,.3)),linear-gradient(0deg,rgba(5,10,20,.9),transparent 45%); padding:30px 5vw; display:flex; flex-direction:column; pointer-events:auto; }
+.briefing-top,.briefing-bottom { display:flex; justify-content:space-between; align-items:center; gap:20px; font:700 11px monospace; letter-spacing:2px; }
+.briefing-top { border-bottom:1px solid #ffffff26; padding-bottom:20px; }
+.briefing-top b { color:#fba64c; }.briefing-top button { display:flex; align-items:center; gap:10px; padding:12px; color:#ccd3df; }
+.briefing-layout { flex:1; display:grid; grid-template-columns:1.35fr 1fr; gap:6vw; align-items:center; padding:42px 0; }
+.briefing-eyebrow { color:#ffab50; font:700 12px monospace; letter-spacing:3px; margin-bottom:22px; }
+.briefing-copy h1 { font-family:Impact,'Arial Narrow',sans-serif; font-size:clamp(42px,5.7vw,88px); font-weight:900; letter-spacing:-1px; line-height:1.03; text-shadow:0 6px 0 #0008; margin:0 0 26px; }
+.briefing-copy h1 span { display:block; }.briefing-copy .accent { color:#ffa443; }
+.briefing-lead { font-size:clamp(18px,1.6vw,23px); max-width:600px; line-height:1.45; }
+.briefing-detail { color:#adb9ce; font-size:15px; line-height:1.8; max-width:540px; margin:16px 0 28px; }
+.briefing-actions { display:flex; gap:12px; }.briefing-next { display:flex; align-items:center; justify-content:center; gap:20px; padding:20px 25px; font-size:13px; letter-spacing:1px; }.briefing-back { border:1px solid #ffffff40; padding:15px; }
+.briefing-progress { display:flex; gap:20px; margin-top:30px; }.briefing-progress button { color:#94a3b8; display:flex; align-items:center; gap:8px; padding:10px 0; font:12px monospace; }.briefing-progress span { width:34px; height:3px; background:#64748b; }.briefing-progress [aria-current] { color:#ffab50; }.briefing-progress [aria-current] span { background:#ffab50; }
+.briefing-pathways { perspective:900px; }.arena-label { color:#d1e0ed; font:10px monospace; letter-spacing:3px; margin:0 0 22px 16px; }.arena-label span { display:inline-block; width:7px; height:7px; background:#80edbd; border-radius:50%; box-shadow:0 0 15px #80edbd; margin-right:8px; }
+.pathway { position:relative; display:flex; align-items:center; gap:20px; background:linear-gradient(110deg,#142234ed,#111c2aad); border:1px solid #ffffff26; border-left:3px solid #ffa443; padding:26px 22px; margin:14px 0; transform:rotateY(-7deg); box-shadow:10px 16px 35px #0005; }.pathway svg { color:#ffa443; flex-shrink:0; }.pathway h2 { font:700 14px monospace; letter-spacing:2px; margin-bottom:8px; }.pathway p { color:#bdc9da; font-size:13px; line-height:1.6; padding-right:15px; }.pathway-number { color:#ffffff12; font:48px Impact,sans-serif; position:absolute; right:10px; top:8px; }
+.briefing-footnote { color:#a6b4c7; font-size:11px; line-height:1.7; margin-top:24px; padding:0 16px; }.briefing-bottom { color:#92a4ba; font-size:9px; padding-top:16px; border-top:1px solid #ffffff26; }
+.locker-menu { background:linear-gradient(90deg,#061020b8,#06102088); }.locker-menu > .relative { margin-block:auto; padding-block:20px; }.briefing-replay { display:block; margin:0 auto 20px; font:10px monospace; letter-spacing:1px; color:#ffb76b; padding:12px; border-bottom:1px solid #ffa44355; }
+.opportunity-intro button:focus-visible,.locker-menu button:focus-visible { outline:3px solid #8de4ff; outline-offset:5px; }.briefing-copy h1:focus { outline:none; }
+@media(max-width:760px) { .opportunity-intro { padding:18px 6vw; }.briefing-top { letter-spacing:1px; font-size:9px; }.briefing-top b { display:block; }.briefing-top button { max-width:150px; }.briefing-layout { grid-template-columns:1fr; gap:28px; padding:32px 0; }.briefing-copy h1 { font-size:clamp(38px,9vw,65px); }.briefing-next { padding:18px 14px; font-size:11px; }.pathway { transform:none; padding:18px; }.briefing-bottom { line-height:1.8; font-size:8px; }.briefing-detail { font-size:14px; } }
+@media(max-width:760px) { .opportunity-intro { background:linear-gradient(90deg,#050a14ed,#050a14b8); } }

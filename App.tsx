@@ -54,14 +54,15 @@ const CameraController = () => {
     };
   }, []);
   
-  useFrame((state, delta) => {
+  useFrame((state, frameDelta) => {
+    const delta = Math.min(frameDelta, 0.05);
     // Determine if screen is narrow (mobile portrait)
     const aspect = size.width / size.height;
     const isMobile = aspect < 1.2;
 
     // Menu cinema cam: slow drifting orbit through the empty arena behind the menu UI
     if (status === GameStatus.MENU) {
-      const t = state.clock.elapsedTime;
+      const t = reducedMotion ? 0 : state.clock.elapsedTime;
       desiredPos.current.set(
         Math.sin(t * 0.12) * 5.2,
         4.0 + Math.sin(t * 0.07) * 0.6,

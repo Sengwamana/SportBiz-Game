@@ -31,6 +31,29 @@ export const AmbientAudioDirector: React.FC = () => {
     }
   }, [status]);
 
+  // Keep music lifecycle separate from crowd intensity and announcements.
+  useEffect(() => {
+    const syncMusic = () => {
+      const current = useStore.getState();
+      const active = [GameStatus.MENU, GameStatus.PLAYING, GameStatus.SHOP].includes(current.status);
+      if (document.hidden || !active) audio.stopBGM();
+      else {
+        audio.setMasterVolume(current.isMuted ? 0 : current.masterVolume);
+        audio.playBGM('./audio/arena-pulse.wav');
+      }
+    };
+    syncMusic();
+    window.addEventListener('pointerdown', syncMusic);
+    window.addEventListener('keydown', syncMusic);
+    document.addEventListener('visibilitychange', syncMusic);
+    return () => {
+      audio.stopBGM();
+      window.removeEventListener('pointerdown', syncMusic);
+      window.removeEventListener('keydown', syncMusic);
+      document.removeEventListener('visibilitychange', syncMusic);
+    };
+  }, [status]);
+
   // "He's On Fire!" activation crowd explosion
   useEffect(() => {
     if (isImmortalityActive && !prevOnFire.current) {
