@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -40,7 +41,24 @@ export const PauseMenu: React.FC = () => {
     toggleMute,
     announcerEnabled,
     toggleAnnouncer
-  } = useStore();
+  } = useStore(useShallow(state => ({
+    status: state.status,
+    resumeGame: state.resumeGame,
+    restartGame: state.restartGame,
+    setStatus: state.setStatus,
+    score: state.score,
+    level: state.level,
+    distance: state.distance,
+    dunkStreak: state.dunkStreak,
+    dribbleMultiplier: state.dribbleMultiplier,
+    dribbleStreak: state.dribbleStreak,
+    masterVolume: state.masterVolume,
+    setMasterVolume: state.setMasterVolume,
+    isMuted: state.isMuted,
+    toggleMute: state.toggleMute,
+    announcerEnabled: state.announcerEnabled,
+    toggleAnnouncer: state.toggleAnnouncer,
+  })));
 
   if (status !== GameStatus.PAUSED) return null;
 

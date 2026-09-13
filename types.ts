@@ -6,6 +6,7 @@
 
 export enum GameStatus {
   MENU = 'MENU',
+  STORY = 'STORY',
   PLAYING = 'PLAYING',
   PAUSED = 'PAUSED',
   SHOP = 'SHOP',

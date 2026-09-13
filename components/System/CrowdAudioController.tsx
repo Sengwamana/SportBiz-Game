@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -461,7 +462,11 @@ export const crowdAudioController = new CrowdAudioEngine();
  * Synchronizes React store state and game events with the audio engine
  */
 export const CrowdAudioController: React.FC = () => {
-  const { status, dunkStreak, setHoopTension } = useStore();
+  const { status, dunkStreak, setHoopTension } = useStore(useShallow(state => ({
+    status: state.status,
+    dunkStreak: state.dunkStreak,
+    setHoopTension: state.setHoopTension,
+  })));
   const prevStatus = useRef<GameStatus>(status);
 
   useEffect(() => {

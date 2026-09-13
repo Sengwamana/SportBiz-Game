@@ -292,7 +292,7 @@ export const useStore = create<GameState>((set, get) => ({
   },
 
   startGame: () => set({ 
-    status: GameStatus.PLAYING, 
+    status: GameStatus.STORY,
     score: 0, 
     lives: 3, 
     maxLives: 3,
@@ -321,7 +321,7 @@ export const useStore = create<GameState>((set, get) => ({
   }),
 
   restartGame: () => set({ 
-    status: GameStatus.PLAYING, 
+    status: GameStatus.STORY,
     score: 0, 
     lives: 3, 
     maxLives: 3,
@@ -362,7 +362,11 @@ export const useStore = create<GameState>((set, get) => ({
 
   incrementDunkStreak: () => set((state) => ({ dunkStreak: state.dunkStreak + 1 })),
   resetDunkStreak: () => set({ dunkStreak: 0 }),
-  setHoopTension: (tension) => set({ hoopTension: Math.max(0, Math.min(1, tension)) }),
+  // The HUD needs percent precision, not a new React update every frame.
+  setHoopTension: (tension) => {
+    const next = Math.round(Math.max(0, Math.min(1, tension)) * 100) / 100;
+    if (next !== get().hoopTension) set({ hoopTension: next });
+  },
 
   addScore: (amount) => set((state) => ({ score: state.score + Math.round(amount * state.dribbleMultiplier) })),
   
@@ -538,7 +542,7 @@ export const useStore = create<GameState>((set, get) => ({
 
   // DAILY CHALLENGE: same court layout all day (seeded), track per-seed best
   playDailyChallenge: () => set({
-    status: GameStatus.PLAYING,
+    status: GameStatus.STORY,
     score: 0,
     lives: 3,
     maxLives: 3,

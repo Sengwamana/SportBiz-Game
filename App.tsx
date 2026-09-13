@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -22,7 +23,14 @@ import { RUN_SPEED_BASE, GameStatus } from './types';
 // Dynamic Camera Controller with Slam Dunk Screen Shake & Cinematic Side-Profile View
 const CameraController = () => {
   const { camera, size } = useThree();
-  const { laneCount, isDunkSlowMo, dunkCamTarget, speed, status, isIntro } = useStore();
+  const { laneCount, isDunkSlowMo, dunkCamTarget, speed, status, isIntro } = useStore(useShallow(state => ({
+    laneCount: state.laneCount,
+    isDunkSlowMo: state.isDunkSlowMo,
+    dunkCamTarget: state.dunkCamTarget,
+    speed: state.speed,
+    status: state.status,
+    isIntro: state.isIntro,
+  })));
   // Respect OS-level "reduce motion" preference (a11y)
   const reducedMotion =
     typeof matchMedia !== 'undefined' &&
@@ -61,7 +69,7 @@ const CameraController = () => {
     const isMobile = aspect < 1.2;
 
     // Menu cinema cam: slow drifting orbit through the empty arena behind the menu UI
-    if (status === GameStatus.MENU) {
+    if (status === GameStatus.MENU || status === GameStatus.STORY) {
       const t = reducedMotion ? 0 : state.clock.elapsedTime;
       desiredPos.current.set(
         Math.sin(t * 0.12) * 5.2,
@@ -250,7 +258,7 @@ function App() {
       <HUD />
 <Canvas
         shadows
-        dpr={[1, Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)]}
+        dpr={[1, Math.min(1.5, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)]}
         gl={{ antialias: false, stencil: false, depth: true, powerPreference: "high-performance" }}
         // Initial camera, matches the controller base
         camera={{ position: [0, 5.5, 8], fov: 60 }}

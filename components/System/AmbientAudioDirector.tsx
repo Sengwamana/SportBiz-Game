@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -16,7 +17,13 @@ import { announcer } from './Announcer';
  * in real-time as the basketball game starts and intensity escalates.
  */
 export const AmbientAudioDirector: React.FC = () => {
-  const { status, speed, level, collectedLetters, isImmortalityActive } = useStore();
+  const { status, speed, level, collectedLetters, isImmortalityActive } = useStore(useShallow(state => ({
+    status: state.status,
+    speed: state.speed,
+    level: state.level,
+    collectedLetters: state.collectedLetters,
+    isImmortalityActive: state.isImmortalityActive,
+  })));
   const prevStatus = useRef<GameStatus>(status);
   const prevOnFire = useRef<boolean>(isImmortalityActive);
 

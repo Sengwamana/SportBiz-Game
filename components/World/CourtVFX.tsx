@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -39,7 +40,11 @@ const SKID_GEO = new THREE.PlaneGeometry(0.24, 0.08);
 const DUST_GEO = new THREE.CircleGeometry(1, 20);
 
 export const CourtVFX: React.FC = () => {
-  const { status, speed, dribbleMultiplier } = useStore();
+  const { status, speed, dribbleMultiplier } = useStore(useShallow(state => ({
+    status: state.status,
+    speed: state.speed,
+    dribbleMultiplier: state.dribbleMultiplier,
+  })));
   const [ripples, setRipples] = useState<DribbleRipple[]>([]);
   const [skids, setSkids] = useState<SkidParticle[]>([]);
   const [dusts, setDusts] = useState<DustPuff[]>([]);

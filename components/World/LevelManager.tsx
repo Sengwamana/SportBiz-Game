@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -219,7 +220,26 @@ export const LevelManager: React.FC = () => {
     incrementDunkStreak,
     resetDunkStreak,
     setHoopTension
-  } = useStore();
+  } = useStore(useShallow(state => ({
+    status: state.status,
+    speed: state.speed,
+    collectGem: state.collectGem,
+    collectLetter: state.collectLetter,
+    collectedLetters: state.collectedLetters,
+    laneCount: state.laneCount,
+    setDistance: state.setDistance,
+    openShop: state.openShop,
+    level: state.level,
+    addScore: state.addScore,
+    isImmortalityActive: state.isImmortalityActive,
+    startDunkCinematic: state.startDunkCinematic,
+    isDunkSlowMo: state.isDunkSlowMo,
+    timeScale: state.timeScale,
+    dunkStreak: state.dunkStreak,
+    incrementDunkStreak: state.incrementDunkStreak,
+    resetDunkStreak: state.resetDunkStreak,
+    setHoopTension: state.setHoopTension,
+  })));
 
   const objectsRef = useRef<GameObject[]>([]);
   const [, setRenderTrigger] = useState(0);
@@ -229,6 +249,7 @@ export const LevelManager: React.FC = () => {
 
   const playerObjRef = useRef<THREE.Object3D | null>(null);
   const distanceTraveled = useRef(0);
+  const playerPosition = useRef(new THREE.Vector3());
   const nextLetterDistance = useRef(BASE_LETTER_INTERVAL);
   const showtimeNext = useRef(SHOWTIME_INTERVAL);
 
@@ -353,7 +374,7 @@ export const LevelManager: React.FC = () => {
   // Handle resets and transitions
   useEffect(() => {
     const isRestart = status === GameStatus.PLAYING && prevStatus.current === GameStatus.GAME_OVER;
-    const isMenuReset = status === GameStatus.MENU;
+    const isMenuReset = status === GameStatus.MENU || status === GameStatus.STORY;
     const isLevelUp = level !== prevLevel.current && status === GameStatus.PLAYING;
     const isVictoryReset = status === GameStatus.PLAYING && prevStatus.current === GameStatus.VICTORY;
 
@@ -418,7 +439,8 @@ export const LevelManager: React.FC = () => {
     distanceTraveled.current += dist;
 
     let hasChanges = false;
-    const playerPos = new THREE.Vector3(0, 0, 0);
+    const playerPos = playerPosition.current;
+    playerPos.set(0, 0, 0);
 
     if (playerObjRef.current) {
       playerObjRef.current.getWorldPosition(playerPos);
@@ -1046,7 +1068,9 @@ const GameEntity: React.FC<{ data: GameObject }> = React.memo(({ data }) => {
   const haloRef = useRef<THREE.Mesh>(null);
   const punchRef = useRef(0);
   const boardFlash = useRef(0);
-  const { laneCount } = useStore();
+  const { laneCount } = useStore(useShallow(state => ({
+    laneCount: state.laneCount,
+  })));
 
   // Hoop rim / net / backboard reaction when slammed
   useEffect(() => {

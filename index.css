@@ -579,3 +579,19 @@ input[type="range"].game-slider::-moz-range-thumb {
 .opportunity-intro button:focus-visible,.locker-menu button:focus-visible { outline:3px solid #8de4ff; outline-offset:5px; }.briefing-copy h1:focus { outline:none; }
 @media(max-width:760px) { .opportunity-intro { padding:18px 6vw; }.briefing-top { letter-spacing:1px; font-size:9px; }.briefing-top b { display:block; }.briefing-top button { max-width:150px; }.briefing-layout { grid-template-columns:1fr; gap:28px; padding:32px 0; }.briefing-copy h1 { font-size:clamp(38px,9vw,65px); }.briefing-next { padding:18px 14px; font-size:11px; }.pathway { transform:none; padding:18px; }.briefing-bottom { line-height:1.8; font-size:8px; }.briefing-detail { font-size:14px; } }
 @media(max-width:760px) { .opportunity-intro { background:linear-gradient(90deg,#050a14ed,#050a14b8); } }
+
+/* Longer sports story remains readable and navigable on smaller screens. */
+.briefing-progress { flex-wrap:wrap; gap:8px 16px; }
+.briefing-progress button { min-height:44px; }
+.briefing-detail { max-width:640px; }
+.briefing-pathways .pathway p { line-height:1.65; }
+@media(max-width:760px) {
+  .briefing-progress { gap:6px 12px; }
+  .briefing-progress span { width:18px; }
+  .briefing-actions { align-items:stretch; }
+  .briefing-next { flex:1; }
+}
+@media(min-width:761px) {
+  .briefing-copy h1 { font-size:clamp(36px,4vw,58px); }
+  .briefing-layout { gap:4vw; padding:30px 0; }
+}

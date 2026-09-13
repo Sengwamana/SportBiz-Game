@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -65,7 +66,19 @@ export const Player: React.FC = () => {
   const rightLegRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
 
-  const { status, laneCount, takeDamage, hasDoubleJump, activateImmortality, isImmortalityActive, dribbleStreak, dribbleMultiplier, incrementDribbleStreak, skinId, isIntro } = useStore();
+  const { status, laneCount, takeDamage, hasDoubleJump, activateImmortality, isImmortalityActive, dribbleStreak, dribbleMultiplier, incrementDribbleStreak, skinId, isIntro } = useStore(useShallow(state => ({
+    status: state.status,
+    laneCount: state.laneCount,
+    takeDamage: state.takeDamage,
+    hasDoubleJump: state.hasDoubleJump,
+    activateImmortality: state.activateImmortality,
+    isImmortalityActive: state.isImmortalityActive,
+    dribbleStreak: state.dribbleStreak,
+    dribbleMultiplier: state.dribbleMultiplier,
+    incrementDribbleStreak: state.incrementDribbleStreak,
+    skinId: state.skinId,
+    isIntro: state.isIntro,
+  })));
 
   const [lane, setLane] = React.useState(0);
   const targetX = useRef(0);

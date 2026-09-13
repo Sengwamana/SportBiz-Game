@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -18,7 +19,13 @@ interface TierConfig {
 }
 
 export const ScoreMultiplierBadge: React.FC = () => {
-  const { dribbleStreak, dribbleMultiplier, status, lastDribbleTime, resetDribbleStreak } = useStore();
+  const { dribbleStreak, dribbleMultiplier, status, lastDribbleTime, resetDribbleStreak } = useStore(useShallow(state => ({
+    dribbleStreak: state.dribbleStreak,
+    dribbleMultiplier: state.dribbleMultiplier,
+    status: state.status,
+    lastDribbleTime: state.lastDribbleTime,
+    resetDribbleStreak: state.resetDribbleStreak,
+  })));
   const [pulse, setPulse] = useState(false);
   const [recentBounce, setRecentBounce] = useState(false);
   const [drain, setDrain] = useState(1);

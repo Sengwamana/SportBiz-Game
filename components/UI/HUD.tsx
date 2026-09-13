@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -214,7 +215,13 @@ const CenterBanner: React.FC<{ text: string; sub?: string; accent?: 'orange' | '
 /*  PRO LOCKER ROOM — halftime shop                                   */
 /* ------------------------------------------------------------------ */
 const ShopScreen: React.FC = () => {
-  const { score, buyItem, closeShop, hasDoubleJump, hasImmortality } = useStore();
+  const { score, buyItem, closeShop, hasDoubleJump, hasImmortality } = useStore(useShallow(state => ({
+    score: state.score,
+    buyItem: state.buyItem,
+    closeShop: state.closeShop,
+    hasDoubleJump: state.hasDoubleJump,
+    hasImmortality: state.hasImmortality,
+  })));
   const [items, setItems] = useState<ShopItem[]>([]);
 
   useEffect(() => {
@@ -360,13 +367,16 @@ const MenuHero: React.FC<{ skinId: string }> = ({ skinId }) => {
 };
 
 const MenuScreen: React.FC<{ startGame: () => void; isMuted: boolean; onToggleMute: (e: React.MouseEvent) => void }> = ({ startGame, isMuted, onToggleMute }) => {
-  const { skinId, setSkin, bestDistance, dailyBest, playDailyChallenge } = useStore();
-  const [showBriefing, setShowBriefing] = useState(() => {
-    try { return localStorage.getItem('sportbiz-briefing-seen') !== '1'; } catch { return true; }
-  });
+  const { skinId, setSkin, bestDistance, dailyBest, playDailyChallenge } = useStore(useShallow(state => ({
+    skinId: state.skinId,
+    setSkin: state.setSkin,
+    bestDistance: state.bestDistance,
+    dailyBest: state.dailyBest,
+    playDailyChallenge: state.playDailyChallenge,
+  })));
+  const [showBriefing, setShowBriefing] = useState(false);
   const finishBriefing = () => {
     audio.playClick();
-    try { localStorage.setItem('sportbiz-briefing-seen', '1'); } catch { /* Storage is optional. */ }
     setShowBriefing(false);
   };
   const unlockedPref = bestDistance;
@@ -677,7 +687,36 @@ export const HUD: React.FC = () => {
     dailyBest,
     isDailyChallenge,
     isDailyRecord
-  } = useStore();
+  } = useStore(useShallow(state => ({
+    score: state.score,
+    lives: state.lives,
+    maxLives: state.maxLives,
+    collectedLetters: state.collectedLetters,
+    status: state.status,
+    level: state.level,
+    restartGame: state.restartGame,
+    startGame: state.startGame,
+    gemsCollected: state.gemsCollected,
+    distance: state.distance,
+    isImmortalityActive: state.isImmortalityActive,
+    speed: state.speed,
+    isDunkSlowMo: state.isDunkSlowMo,
+    dunkStreak: state.dunkStreak,
+    hoopTension: state.hoopTension,
+    dribbleMultiplier: state.dribbleMultiplier,
+    pauseGame: state.pauseGame,
+    resumeGame: state.resumeGame,
+    isMuted: state.isMuted,
+    toggleMute: state.toggleMute,
+    bestDistance: state.bestDistance,
+    isNewRecord: state.isNewRecord,
+    setSkin: state.setSkin,
+    isIntro: state.isIntro,
+    endIntro: state.endIntro,
+    dailyBest: state.dailyBest,
+    isDailyChallenge: state.isDailyChallenge,
+    isDailyRecord: state.isDailyRecord,
+  })));
 
   // Respect OS-level "reduce motion" preference (a11y)
   const reducedMotion =
@@ -861,6 +900,10 @@ export const HUD: React.FC = () => {
 
   if (status === GameStatus.SHOP) {
     return <ShopScreen />;
+  }
+
+  if (status === GameStatus.STORY) {
+    return <OpportunityIntro isNewGame onComplete={() => useStore.getState().setStatus(GameStatus.PLAYING)} />;
   }
 
   // --- MENU SCREEN ---
