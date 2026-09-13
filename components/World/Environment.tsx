@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useStore } from '../../store';
@@ -482,7 +482,7 @@ export function cycleSunlightAndShadow(
   let sunIntensity = k1.sunIntensity + (k2.sunIntensity - k1.sunIntensity) * smoothT;
   let shadowIntensity = k1.shadowIntensity + (k2.shadowIntensity - k1.shadowIntensity) * smoothT;
   let ambientIntensity = k1.ambientIntensity + (k2.ambientIntensity - k1.ambientIntensity) * smoothT;
-  const fillIntensity = k1.fillIntensity + (k2.fillIntensity - k1.fillIntensity) * smoothT;
+  let fillIntensity = k1.fillIntensity + (k2.fillIntensity - k1.fillIntensity) * smoothT;
 
   // 3. Interpolate Colors
   resultSunColor.lerpColors(cachedKeyframeColors[idx].sun, cachedKeyframeColors[idx + 1].sun, smoothT);
@@ -524,6 +524,15 @@ export function cycleSunlightAndShadow(
   shadowIntensity = Math.max(0.08, Math.min(1.0, shadowIntensity * flickerMultiplier));
   sunIntensity = sunIntensity * (0.35 + 0.65 * flickerMultiplier);
   ambientIntensity = ambientIntensity * (0.75 + 0.25 * flickerMultiplier);
+
+  // Global light-truck balance: the authored keyframes are hot for an LDR
+  // web renderer at some phases and want to clip the polished hardwood lane
+  // to pure white ("white screen"), erasing the court. A gentle scene-wide
+  // gain keeps the keyframed day/night curve shape while staying in range.
+  const LIGHT_GAIN = 0.78;
+  sunIntensity *= LIGHT_GAIN;
+  ambientIntensity *= LIGHT_GAIN;
+  fillIntensity *= LIGHT_GAIN;
 
   return {
     sunPosition: [sunX, sunY, sunZ],
@@ -650,10 +659,32 @@ const ArenaStands: React.FC<{ side: 'left' | 'right' }> = ({ side }) => {
 // Hanging 4-Sided Center Court Jumbotron Scoreboard in the Distance
 const CenterCourtJumbotron: React.FC = () => {
   const jumbotronRef = useRef<THREE.Group>(null);
+  const screenRef = useRef<THREE.Mesh>(null);
+  const pulseRef = useRef(0);
+  const baseColor = useMemo(() => new THREE.Color('#0284c7'), []);
+  const pulseColor = useMemo(() => new THREE.Color('#ffd700'), []);
+
+  useEffect(() => {
+    const pulse = () => { pulseRef.current = 1; };
+    window.addEventListener('dunk-success', pulse);
+    window.addEventListener('screen-shake', pulse);
+    return () => {
+      window.removeEventListener('dunk-success', pulse);
+      window.removeEventListener('screen-shake', pulse);
+    };
+  }, []);
 
   useFrame(state => {
     if (jumbotronRef.current) {
       jumbotronRef.current.position.y = 22 + Math.sin(state.clock.elapsedTime * 0.4) * 0.4;
+    }
+    if (pulseRef.current > 0) {
+      pulseRef.current = Math.max(0, pulseRef.current - state.clock.getDelta() * 1.4);
+    }
+    if (screenRef.current) {
+      const mat = screenRef.current.material as THREE.MeshBasicMaterial;
+      mat.color.copy(baseColor).lerp(pulseColor, pulseRef.current);
+      mat.opacity = 1;
     }
   });
 
@@ -666,7 +697,7 @@ const CenterCourtJumbotron: React.FC = () => {
       </mesh>
 
       {/* Glowing Video Screen Ring */}
-      <mesh position={[0, 0, 0]}>
+      <mesh ref={screenRef} position={[0, 0, 0]}>
         <cylinderGeometry args={[8.05, 9.05, 4.2, 4, 1, true]} />
         <meshBasicMaterial color="#0284c7" />
       </mesh>
@@ -679,6 +710,211 @@ const CenterCourtJumbotron: React.FC = () => {
 
       {/* Downward spotlight illuminating the track below */}
       <pointLight color="#ffffff" intensity={2.5} distance={75} decay={2} position={[0, -4, 0]} />
+    </group>
+  );
+};
+
+// Seeded PRNG for repeatable crowd layout
+function mulberry32(a: number) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const CROWD_JERSEYS = ['#2563eb', '#ea580c', '#dc2626', '#0f172a', '#10b981', '#7c3aed', '#f59e0b', '#ffffff'];
+
+// Soft round "fan" sprite texture (billboarded via THREE.Points)
+const FAN_TEX = (() => {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(32, 34, 1, 32, 32, 30);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.68, 'rgba(255,255,255,0.9)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+})();
+
+// Billboarded spectator crowd (single-draw billboards sprites) with tiered tiers,
+// individual bobbing, and a rising wave on dunks
+const StadiumCrowd: React.FC = () => {
+  const bodyPoints = useRef<THREE.Points>(null);
+  const headPoints = useRef<THREE.Points>(null);
+  const waveRef = useRef(0);
+
+  const seats = useMemo(() => {
+    const rand = mulberry32(1337);
+    const list: { x: number; y: number; z: number; phase: number; jersey: [number, number, number] }[] = [];
+    const sides: Array<'left' | 'right'> = ['left', 'right'];
+    const colorCache = new Map<string, [number, number, number]>();
+    const toRGB = (hex: string): [number, number, number] => {
+      const hit = colorCache.get(hex);
+      if (hit) return hit;
+      const n = parseInt(hex.slice(1), 16);
+      const c: [number, number, number] = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+      colorCache.set(hex, c);
+      return c;
+    };
+    for (const side of sides) {
+      const gx = side === 'left' ? -22 : 22;
+      for (let tier = 0; tier < 3; tier++) {
+        const tx = gx + (side === 'left' ? -tier * 2.2 : tier * 2.2);
+        const ty = 1.25 + tier * 1.62;
+        for (let k = 0; k < 72; k++) {
+          const z = 8 - k * 1.7;
+          list.push({
+            x: tx + (rand() - 0.5) * 0.36,
+            y: ty + (rand() - 0.5) * 0.08,
+            z,
+            phase: rand() * Math.PI * 2,
+            jersey: toRGB(CROWD_JERSEYS[Math.floor(rand() * CROWD_JERSEYS.length)]),
+          });
+        }
+      }
+    }
+    return list;
+  }, []);
+
+  const bodyGeom = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(seats.length * 3), 3));
+    const colors = new Float32Array(seats.length * 3);
+    seats.forEach((s, i) => {
+      colors[i * 3] = s.jersey[0];
+      colors[i * 3 + 1] = s.jersey[1];
+      colors[i * 3 + 2] = s.jersey[2];
+    });
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 2, -50), 150);
+    return geo;
+  }, [seats]);
+
+  const headGeom = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(seats.length * 3), 3));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 3, -50), 150);
+    return geo;
+  }, [seats]);
+
+  useEffect(() => {
+    const cheer = () => { waveRef.current = 1; };
+    window.addEventListener('dunk-success', cheer);
+    window.addEventListener('screen-shake', cheer);
+    return () => {
+      window.removeEventListener('dunk-success', cheer);
+      window.removeEventListener('screen-shake', cheer);
+    };
+  }, []);
+
+  useFrame((state, delta) => {
+    if (!bodyPoints.current || !headPoints.current) return;
+    if (waveRef.current > 0) waveRef.current = Math.max(0, waveRef.current - delta * 1.2);
+    const t = state.clock.elapsedTime;
+    const wave = waveRef.current;
+
+    const bodyPos = bodyPoints.current.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const headPos = headPoints.current.geometry.getAttribute('position') as THREE.BufferAttribute;
+
+    for (let i = 0; i < seats.length; i++) {
+      const s = seats[i];
+      const bob = Math.sin(t * 2 + s.phase) * 0.045;
+      const sway = Math.sin(t * 0.55 + s.z * 0.05) * 0.05;
+      const jump = wave > 0 ? Math.abs(Math.sin(t * 3.2 + s.z * 0.11)) * wave * 0.55 : 0;
+
+      // Body sprite
+      bodyPos.array[i * 3] = s.x + sway;
+      bodyPos.array[i * 3 + 1] = s.y + bob;
+      bodyPos.array[i * 3 + 2] = s.z;
+
+      // Head sprite bobs higher and leaps up with the wave (arms raised!)
+      headPos.array[i * 3] = s.x + sway * 1.2;
+      headPos.array[i * 3 + 1] = s.y + 0.95 + bob + jump;
+      headPos.array[i * 3 + 2] = s.z;
+    }
+    bodyPos.needsUpdate = true;
+    headPos.needsUpdate = true;
+
+    // Pulse size with wave intensity for an energetic swell
+    const swell = 1 + wave * 0.18;
+    (bodyPoints.current.material as THREE.PointsMaterial).size = 1.5 * swell;
+    (headPoints.current.material as THREE.PointsMaterial).size = 0.6 * swell;
+  });
+
+  return (
+    <group>
+      <points ref={bodyPoints} geometry={bodyGeom} frustumCulled={false}>
+        <pointsMaterial
+          map={FAN_TEX}
+          size={1.5}
+          sizeAttenuation
+          vertexColors
+          transparent
+          depthWrite={false}
+          opacity={0.98}
+        />
+      </points>
+      <points ref={headPoints} geometry={headGeom} frustumCulled={false}>
+        <pointsMaterial
+          map={FAN_TEX}
+          size={0.6}
+          sizeAttenuation
+          color="#d9ad84"
+          transparent
+          depthWrite={false}
+          opacity={0.96}
+        />
+      </points>
+    </group>
+  );
+};
+
+// Corner marketing flags spinning slowly at the far corners
+const ArenaCornerFlags: React.FC = () => {
+  const flagRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const FLAG_GEO = new THREE.ConeGeometry(0.6, 1.7, 3, 1);
+
+  useFrame((state) => {
+    flagRefs.current.forEach((f, i) => {
+      if (f) {
+        f.rotation.y += state.clock.getDelta() * (i % 2 === 0 ? 1.2 : -1.2);
+      }
+    });
+  });
+
+  const corners: [number, number][] = [
+    [-14, -38],
+    [14, -38],
+    [-14, -118],
+    [14, -118],
+  ];
+
+  return (
+    <group>
+      {corners.map(([x, z], i) => (
+        <group key={i} position={[x, 0, z]}>
+          <mesh position={[0, 1.1, 0]}>
+            <cylinderGeometry args={[0.06, 0.08, 2.2, 8]} />
+            <meshStandardMaterial color="#475569" metalness={0.8} roughness={0.3} />
+          </mesh>
+          <mesh
+            ref={el => { flagRefs.current[i] = el; }}
+            position={[0, 2.1, 0]}
+            rotation={[Math.PI / 2, 0, 0]}
+            geometry={FLAG_GEO}
+            scale={[1, 1, 1]}
+          >
+            <meshStandardMaterial color={i % 2 === 0 ? '#ea580c' : '#2563eb'} side={THREE.DoubleSide} roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 };
@@ -744,7 +980,7 @@ export const Environment: React.FC = () => {
     <>
       {/* Light Mode Bright Arena Atmosphere with Dynamic Transition */}
       <color attach="background" args={['#e8ecf2']} />
-      <fog attach="fog" args={['#e8ecf2', 45, 190]} />
+      <fog attach="fog" args={['#d8e3f5', 70, 200]} />
 
       {/* Dynamic Sunlight & Shadow Engine */}
       <ambientLight ref={ambientLightRef} intensity={0.82} color="#ffffff" />
@@ -792,6 +1028,12 @@ export const Environment: React.FC = () => {
       {/* Stadium Bleachers & Arena Sideline Walls */}
       <ArenaStands side="left" />
       <ArenaStands side="right" />
+
+      {/* Instanced Spectator Crowd */}
+      <StadiumCrowd />
+
+      {/* Arena Corner Flags */}
+      <ArenaCornerFlags />
 
       {/* Overhead Arena Roof Light Trusses */}
       <StadiumFloodlightTruss position={[0, 18, -30]} />
