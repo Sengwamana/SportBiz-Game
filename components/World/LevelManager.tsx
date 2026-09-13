@@ -9,13 +9,34 @@ import * as THREE from 'three';
 import { Text3D, Center } from '@react-three/drei';
 import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '../../store';
-import { GameObject, ObjectType, LANE_WIDTH, SPAWN_DISTANCE, REMOVE_DISTANCE, GameStatus, GEMINI_COLORS, BASKET_TARGET } from '../../types';
+import { GameObject, ObjectType, LANE_WIDTH, SPAWN_DISTANCE, REMOVE_DISTANCE, GameStatus, GEMINI_COLORS, BASKET_TARGET, RUN_SPEED_BASE, getDailySeed } from '../../types';
 import { audio } from '../System/Audio';
 import { ambientAudio } from '../System/AmbientAudio';
 import { crowdAudioController } from '../System/CrowdAudioController';
+import { announcer } from '../System/Announcer';
+
+// Daily-seeded Spawn PRNG: identical obstacle layout every match that day → scores are comparable
+function mulberry32Seed(a: number) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const spawnRng = mulberry32Seed(getDailySeed());
+
+// Active Showtime Lane hoop awaiting the SLAM CAM timing resolution
+let showtimePending: GameObject | null = null;
 
 // Geometry Constants
 const OBSTACLE_HEIGHT = 1.6;
+// Spawn-free grace period at the start of a run (gives the player a clear opening)
+const GRACE_DISTANCE = RUN_SPEED_BASE * 1.5;
+// Showtime Lane dunk checkpoints every 500 yards of court distance
+const SHOWTIME_INTERVAL = 500;
+// Pulsing telegraph circle under oncoming dangers
+const TELEGRAPH_GEO = new THREE.CircleGeometry(1.0, 28);
 
 // Basketball Training Dummy Geometries
 const DUMMY_BASE_GEO = new THREE.CylinderGeometry(0.48, 0.52, 0.12, 16);
@@ -36,6 +57,15 @@ const RIVAL_ARMS_GEO = new THREE.BoxGeometry(1.2, 0.15, 0.15);
 // Fast Bullet Basketball Pass (replacing Missile)
 const BULLET_BALL_GEO = new THREE.SphereGeometry(0.3, 16, 16);
 const BULLET_RING_GEO = new THREE.TorusGeometry(0.38, 0.03, 12, 24);
+
+// Lateral Sweep Defense Geometries (Moving Wall + Ground Sweeper)
+const WALL_GEO = new THREE.BoxGeometry(LANE_WIDTH * 1.6, OBSTACLE_HEIGHT, 0.28);
+const WALL_STRIPE_GEO = new THREE.PlaneGeometry(LANE_WIDTH * 1.6, 0.32);
+const SWEEP_GEO = new THREE.CylinderGeometry(0.08, 0.08, LANE_WIDTH * 3.2, 10);
+const SWEEP_END_GEO = new THREE.SphereGeometry(0.44, 12, 12);
+
+// Showtime Lane golden halo ring (pre-slam target zone)
+const SHOWTIME_HALO_GEO = new THREE.TorusGeometry(0.82, 0.05, 10, 30);
 
 // Basketball Dunk Hoop Geometries
 const HOOP_BACKBOARD_GEO = new THREE.BoxGeometry(1.6, 1.1, 0.05);
@@ -166,7 +196,7 @@ const ParticleSystem: React.FC = () => {
 
 const getRandomLane = (laneCount: number) => {
   const max = Math.floor(laneCount / 2);
-  return Math.floor(Math.random() * (max * 2 + 1)) - max;
+  return Math.floor(spawnRng() * (max * 2 + 1)) - max;
 };
 
 export const LevelManager: React.FC = () => {
@@ -200,6 +230,7 @@ export const LevelManager: React.FC = () => {
   const playerObjRef = useRef<THREE.Object3D | null>(null);
   const distanceTraveled = useRef(0);
   const nextLetterDistance = useRef(BASE_LETTER_INTERVAL);
+  const showtimeNext = useRef(SHOWTIME_INTERVAL);
 
   // Audio cue when cinematic slow-mo ends and normal speed snaps back
   useEffect(() => {
@@ -208,6 +239,116 @@ export const LevelManager: React.FC = () => {
     }
     prevDunkSlowMo.current = isDunkSlowMo;
   }, [isDunkSlowMo, status]);
+
+  // Dunk timing mini-game resolution (PERFECT / GOOD / MISS) + Showtime Lane bonus
+  useEffect(() => {
+    const handleTiming = (e: any) => {
+      const detail = e.detail || {};
+      const zone = detail.zone || 'miss';
+      const position = detail.position || null;
+
+      // Showtime Lane checkpoint resolution: gold-tier rewards for a flawless finish
+      if (showtimePending) {
+        const pending = showtimePending;
+        showtimePending = null;
+        if (zone === 'perfect') {
+          addScore(1500);
+          audio.playComboPing(true);
+          window.dispatchEvent(new CustomEvent('screen-shake', {
+            detail: { intensity: 0.9, duration: 0.45 }
+          }));
+          if (position) {
+            for (let i = 0; i < 5; i++) {
+              window.dispatchEvent(new CustomEvent('particle-burst', {
+                detail: { position: [position[0], 2 + i * 0.5, position[2]], color: '#ffd700' }
+              }));
+            }
+          }
+          announcer.say('Showtime!');
+          window.dispatchEvent(new CustomEvent('dunk-success', {
+            detail: { position, points: 1500, text: 'SHOWTIME SLAM!' }
+          }));
+          window.dispatchEvent(new CustomEvent('score-popup', {
+            detail: {
+              position: position ? [pending.position[0], 3.4, pending.position[2]] : [0, 3, 0],
+              text: 'SHOWTIME!',
+              sub: '+1500',
+              color: '#ffd700',
+              scale: 2.0,
+            }
+          }));
+        } else if (zone === 'good') {
+          addScore(400);
+          audio.playComboPing(false);
+          window.dispatchEvent(new CustomEvent('score-popup', {
+            detail: {
+              position: position ? [pending.position[0], 2.6, pending.position[2]] : [0, 3, 0],
+              text: 'SOLID FINISH',
+              sub: '+400',
+              color: '#fbbf24',
+              scale: 1.15,
+            }
+          }));
+        } else {
+          window.dispatchEvent(new CustomEvent('score-popup', {
+            detail: {
+              position: position ? [pending.position[0], 2.4, pending.position[2]] : [0, 3, 0],
+              text: 'SHOWTIME MISSED',
+              sub: 'No bonus',
+              color: '#94a3b8',
+              scale: 0.9,
+            }
+          }));
+        }
+        return;
+      }
+
+      if (zone === 'perfect') {
+        addScore(750);
+        audio.playComboPing(true);
+        window.dispatchEvent(new CustomEvent('screen-shake', {
+          detail: { intensity: 0.55, duration: 0.3 }
+        }));
+        if (position) {
+          for (let i = 0; i < 3; i++) {
+            window.dispatchEvent(new CustomEvent('particle-burst', {
+              detail: { position: [position[0], 2 + i * 0.4, position[2]], color: '#ffd700' }
+            }));
+          }
+        }
+        announcer.onDunk(true);
+        window.dispatchEvent(new CustomEvent('score-popup', {
+          detail: {
+            position: position ? [position[0], position[1] || 3, position[2]] : [0, 3, 0],
+            text: 'PERFECT!',
+            sub: '+750',
+            color: '#ffd700',
+            scale: 1.6,
+          }
+        }));
+      } else if (zone === 'good') {
+        addScore(250);
+        audio.playComboPing(false);
+        if (position) {
+          window.dispatchEvent(new CustomEvent('particle-burst', {
+            detail: { position: [position[0], 2.4, position[2]], color: '#fbbf24' }
+          }));
+        }
+        window.dispatchEvent(new CustomEvent('score-popup', {
+          detail: {
+            position: position ? [position[0], position[1] || 3, position[2]] : [0, 3, 0],
+            text: 'GOOD RELEASE',
+            sub: '+250',
+            color: '#fbbf24',
+            scale: 1.2,
+          }
+        }));
+      }
+    };
+
+    window.addEventListener('dunk-timing', handleTiming);
+    return () => window.removeEventListener('dunk-timing', handleTiming);
+  }, [addScore]);
 
   // Handle resets and transitions
   useEffect(() => {
@@ -222,6 +363,8 @@ export const LevelManager: React.FC = () => {
 
       distanceTraveled.current = 0;
       nextLetterDistance.current = getLetterInterval(1);
+      showtimeNext.current = SHOWTIME_INTERVAL;
+      showtimePending = null;
     } else if (isLevelUp && level > 1) {
       // Clear distant objects to place Shop Portal
       objectsRef.current = objectsRef.current.filter(obj => obj.position[2] > -80);
@@ -229,6 +372,15 @@ export const LevelManager: React.FC = () => {
       // Arena cheer and organ fanfare for quarter advancement
       ambientAudio.triggerCheerSwell(0.9);
       ambientAudio.triggerArenaFanfare();
+      announcer.onLevelUp(level);
+
+      // Arena confetti cannon burst
+      const confettiColors = ['#f59e0b', '#2563eb', '#dc2626', '#10b981', '#ea580c', '#7c3aed'];
+      confettiColors.forEach((c, i) => {
+        window.dispatchEvent(new CustomEvent('particle-burst', {
+          detail: { position: [(i - 2.5) * 1.1, 3, -35], color: c }
+        }));
+      });
 
       // Spawn Locker Room Portal
       objectsRef.current.push({
@@ -284,6 +436,32 @@ export const LevelManager: React.FC = () => {
         moveAmount += MISSILE_SPEED * safeDelta;
       }
 
+      // Showtime Lane checkpoint announcement before the golden hoop comes into view
+      if (obj.type === ObjectType.HOOP && obj.isShowtime && !obj.hasAnnounced && obj.position[2] > -110) {
+        obj.hasAnnounced = true;
+        crowdAudioController.triggerStreakDunkCheer(2, obj.position);
+        window.dispatchEvent(new CustomEvent('showtime-announce', {
+          detail: { position: obj.position, lane: obj.position[0] }
+        }));
+        hasChanges = true;
+      }
+
+      // Lateral oscillation for moving walls / sweepers
+      if (obj.type === ObjectType.MOVING_WALL || obj.type === ObjectType.SWEEPER) {
+        const a = obj.amplitude ?? 0;
+        const w = obj.oscSpeed ?? 1.6;
+        const p = obj.phase ?? 0;
+        obj.position[0] = (obj.baseX ?? 0) + Math.sin(state.clock.elapsedTime * w + p) * a;
+
+        // Reserve a clear lane: the moving wall never invades the outermost half-lanes,
+        // while the ground sweeper stays its swing fully inside the playable corridor.
+        const maxLane = Math.floor(laneCount / 2);
+        const bound = obj.type === ObjectType.MOVING_WALL
+          ? Math.max(0, (maxLane - 0.85) * LANE_WIDTH)
+          : Math.max(0, (maxLane - 0.45) * LANE_WIDTH);
+        obj.position[0] = THREE.MathUtils.clamp(obj.position[0], -bound, bound);
+      }
+
       const prevZ = obj.position[2];
       obj.position[2] += moveAmount;
 
@@ -325,7 +503,11 @@ export const LevelManager: React.FC = () => {
           // Missed hoop detection if passed without dunking
           if (!obj.isDunked && !obj.hasMissed && obj.position[2] > playerPos.z + 1.8) {
             obj.hasMissed = true;
-            if (dunkStreak > 0) {
+            if (obj.isShowtime) {
+              window.dispatchEvent(new CustomEvent('showtime-missed', {
+                detail: { position: obj.position }
+              }));
+            } else if (dunkStreak > 0) {
               crowdAudioController.triggerMissedHoopGroan(dunkStreak);
               resetDunkStreak();
             }
@@ -342,6 +524,29 @@ export const LevelManager: React.FC = () => {
               obj.isDunked = true;
               obj.active = false;
               hasChanges = true;
+
+              // Showtime Lane checkpoint: watch the SLAM CAM timing resolution for the bonus
+              if (obj.isShowtime) {
+                showtimePending = obj;
+                setTimeout(() => {
+                  if (showtimePending === obj) {
+                    showtimePending = null;
+                    // Silent-timeout penalty: the timing window expired un-released
+                    window.dispatchEvent(new CustomEvent('showtime-missed', {
+                      detail: { position: obj.position }
+                    }));
+                    window.dispatchEvent(new CustomEvent('score-popup', {
+                      detail: {
+                        position: [obj.position[0], 3.0, obj.position[2]],
+                        text: 'SHOWTIME MISSED',
+                        sub: 'Timing window expired',
+                        color: '#94a3b8',
+                        scale: 0.9,
+                      }
+                    }));
+                  }
+                }, 4500);
+              }
 
               // Modulate crowd cheering volume dynamically based on current dunk success streak
               incrementDunkStreak();
@@ -366,6 +571,16 @@ export const LevelManager: React.FC = () => {
                   text: 'SLAM DUNK!'
                 }
               }));
+              window.dispatchEvent(new CustomEvent('score-popup', {
+                detail: {
+                  position: [obj.position[0], 2.6, obj.position[2]],
+                  text: 'SLAM DUNK!',
+                  sub: '+300',
+                  color: '#f59e0b',
+                  scale: 1.4,
+                }
+              }));
+              announcer.onDunk(false);
 
               // 4. Heavy metallic rim rattle & stadium roar
               audio.playDunk();
@@ -385,8 +600,9 @@ export const LevelManager: React.FC = () => {
           }
         } else if (inZZone) {
           const dx = Math.abs(obj.position[0] - playerPos.x);
-          if (dx < 0.92) {
-            const isDamageSource = obj.type === ObjectType.OBSTACLE || obj.type === ObjectType.ALIEN || obj.type === ObjectType.MISSILE;
+          // Hitbox forgiveness: player must overlap ~80% of damage-source width to be clipped
+          if (dx < 0.8) {
+            const isDamageSource = obj.type === ObjectType.OBSTACLE || obj.type === ObjectType.ALIEN || obj.type === ObjectType.MISSILE || obj.type === ObjectType.MOVING_WALL || obj.type === ObjectType.SWEEPER;
 
             // Player is invincible during cinematic slow-mo slam dunk
             if (isDamageSource && isDunkSlowMo) {
@@ -400,12 +616,15 @@ export const LevelManager: React.FC = () => {
               let objBottom = obj.position[1] - 0.5;
               let objTop = obj.position[1] + 0.5;
 
-              if (obj.type === ObjectType.OBSTACLE) {
+              if (obj.type === ObjectType.OBSTACLE || obj.type === ObjectType.MOVING_WALL) {
                 objBottom = 0;
                 objTop = OBSTACLE_HEIGHT;
               } else if (obj.type === ObjectType.MISSILE) {
                 objBottom = 0.3;
                 objTop = 1.3;
+              } else if (obj.type === ObjectType.SWEEPER) {
+                objBottom = 0.25;
+                objTop = 1.05;
               }
 
               const isHit = (playerBottom < objTop) && (playerTop > objBottom);
@@ -423,6 +642,16 @@ export const LevelManager: React.FC = () => {
                       text: 'POWER CRUSH!'
                     }
                   }));
+                  window.dispatchEvent(new CustomEvent('score-popup', {
+                    detail: {
+                      position: [obj.position[0], 1.4, obj.position[2]],
+                      text: 'POWER CRUSH!',
+                      sub: '+200',
+                      color: '#ff7700',
+                      scale: 1.3,
+                    }
+                  }));
+                  announcer.onPower();
                   audio.playDunk();
                   addScore(200);
                   obj.active = false;
@@ -434,6 +663,7 @@ export const LevelManager: React.FC = () => {
                   window.dispatchEvent(new Event('player-hit'));
                   obj.active = false;
                   hasChanges = true;
+                  announcer.onPlayerHit();
 
                   if (obj.type === ObjectType.MISSILE) {
                     window.dispatchEvent(new CustomEvent('particle-burst', {
@@ -467,11 +697,32 @@ export const LevelManager: React.FC = () => {
                         text: 'ALLEY-OOP DUNK!'
                       }
                     }));
+                    window.dispatchEvent(new CustomEvent('score-popup', {
+                      detail: {
+                        position: [obj.position[0], 1.8, obj.position[2]],
+                        text: 'ALLEY-OOP!',
+                        sub: `+${(obj.points || 150)}`,
+                        color: '#fbbf24',
+                        scale: 1.2,
+                      }
+                    }));
+                    announcer.onDunk(false);
                     audio.playDunk();
                   } else {
                     audio.playGemCollect();
                   }
                   collectGem(obj.points || 50);
+                  if (!(isElevatedBall && isAirborne)) {
+                    window.dispatchEvent(new CustomEvent('score-popup', {
+                      detail: {
+                        position: [obj.position[0], 1, obj.position[2]],
+                        text: `+${(obj.points || 50)}`,
+                        sub: '',
+                        color: obj.points && obj.points >= 100 ? '#ffd700' : '#ea580c',
+                        scale: 0.9,
+                      }
+                    }));
+                  }
                 }
                 if (obj.type === ObjectType.LETTER && obj.targetIndex !== undefined) {
                   if (playerPos.y > 1.3) {
@@ -482,6 +733,18 @@ export const LevelManager: React.FC = () => {
                   collectLetter(obj.targetIndex);
                   audio.playLetterCollect();
                   ambientAudio.triggerLetterCheer(obj.targetIndex);
+                  window.dispatchEvent(new CustomEvent('score-popup', {
+                    detail: {
+                      position: [obj.position[0], 1.6, obj.position[2]],
+                      text: obj.value || 'LETTER',
+                      sub: 'COLLECTED',
+                      color: obj.color || '#ffffff',
+                      scale: 1.1,
+                    }
+                  }));
+                  window.dispatchEvent(new CustomEvent('letter-trail', {
+                    detail: { position: obj.position }
+                  }));
                 }
 
                 window.dispatchEvent(new CustomEvent('particle-burst', {
@@ -547,6 +810,11 @@ export const LevelManager: React.FC = () => {
       const minGap = 12 + (speed * 0.4);
       const spawnZ = Math.min(furthestZ - minGap, -SPAWN_DISTANCE);
 
+      // Startup grace period: give the player a clear straightaway off the tip-off
+      if (distanceTraveled.current < GRACE_DISTANCE) {
+        return;
+      }
+
       const isLetterDue = distanceTraveled.current >= nextLetterDistance.current;
 
       if (isLetterDue) {
@@ -556,7 +824,7 @@ export const LevelManager: React.FC = () => {
         const availableIndices = target.map((_, i) => i).filter(i => !collectedLetters.includes(i));
 
         if (availableIndices.length > 0) {
-          const chosenIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+          const chosenIndex = availableIndices[Math.floor(spawnRng() * availableIndices.length)];
           const val = target[chosenIndex];
           const color = GEMINI_COLORS[chosenIndex];
 
@@ -584,8 +852,25 @@ export const LevelManager: React.FC = () => {
           });
           hasChanges = true;
         }
-      } else if (Math.random() > 0.08) {
-        const roll = Math.random();
+      } else if (distanceTraveled.current >= showtimeNext.current) {
+        // SHOWTIME LANE: Golden dunk checkpoint every 500 yards
+        const lane = getRandomLane(laneCount);
+        const laneX = lane * LANE_WIDTH;
+
+        keptObjects.push({
+          id: uuidv4(),
+          type: ObjectType.HOOP,
+          position: [laneX, 2.45, spawnZ],
+          active: true,
+          color: '#ffd700',
+          points: 1500,
+          isShowtime: true
+        });
+
+        showtimeNext.current += SHOWTIME_INTERVAL;
+        hasChanges = true;
+      } else if (spawnRng() > 0.08) {
+        const roll = spawnRng();
 
         if (roll < 0.28) {
           // Basketball Hoop Dunk Opportunity!
@@ -602,7 +887,7 @@ export const LevelManager: React.FC = () => {
           });
 
           // Chance for an obstacle right beneath/before the hoop for a soaring leap & dunk
-          if (Math.random() < 0.45) {
+          if (spawnRng() < 0.45) {
             keptObjects.push({
               id: uuidv4(),
               type: ObjectType.OBSTACLE,
@@ -613,64 +898,105 @@ export const LevelManager: React.FC = () => {
           }
           hasChanges = true;
         } else if (roll < 0.78) {
-          const spawnRival = level >= 2 && Math.random() < 0.22;
+          const advancedRoll = spawnRng();
 
-          if (spawnRival) {
-            const availableLanes: number[] = [];
+          if (level >= 2 && advancedRoll < (level >= 3 ? 0.42 : 0.3)) {
+            // ADVANCED DEFENSE: one laterally-moving danger (moving wall Q2+, ground sweeper Q3+)
+            const movingWall = level >= 3 && spawnRng() < 0.5;
+            const baseLane = Math.floor((spawnRng() * laneCount) - Math.floor(laneCount / 2));
+            const baseX = baseLane * LANE_WIDTH;
+
+            keptObjects.push({
+              id: uuidv4(),
+              type: movingWall ? ObjectType.MOVING_WALL : ObjectType.SWEEPER,
+              position: [baseX, movingWall ? OBSTACLE_HEIGHT / 2 : 0.65, spawnZ],
+              active: true,
+              color: movingWall ? '#fb923c' : '#facc15',
+              baseX,
+              amplitude: movingWall ? LANE_WIDTH * 1.7 : LANE_WIDTH * 1.4,
+              phase: spawnRng() * Math.PI * 2,
+              oscSpeed: movingWall ? 1.35 : 2.2
+            });
+
+            // A static dummy on a remaining lane keeps pressure while the lane is clear
             const maxLane = Math.floor(laneCount / 2);
-            for (let i = -maxLane; i <= maxLane; i++) availableLanes.push(i);
-            availableLanes.sort(() => Math.random() - 0.5);
-
-            let defenderCount = 1;
-            const p = Math.random();
-            if (p > 0.7) defenderCount = Math.min(2, availableLanes.length);
-            if (p > 0.9 && availableLanes.length >= 3) defenderCount = 3;
-
-            for (let k = 0; k < defenderCount; k++) {
-              const lane = availableLanes[k];
-              keptObjects.push({
-                id: uuidv4(),
-                type: ObjectType.ALIEN,
-                position: [lane * LANE_WIDTH, 1.2, spawnZ],
-                active: true,
-                color: '#7c3aed',
-                hasFired: false
-              });
-            }
-          } else {
-            // Standard Obstacle: Basketball D-Man Training Dummy
-            const availableLanes: number[] = [];
-            const maxLane = Math.floor(laneCount / 2);
-            for (let i = -maxLane; i <= maxLane; i++) availableLanes.push(i);
-            availableLanes.sort(() => Math.random() - 0.5);
-
-            let countToSpawn = 1;
-            const p = Math.random();
-            if (p > 0.80) countToSpawn = Math.min(3, availableLanes.length);
-            else if (p > 0.50) countToSpawn = Math.min(2, availableLanes.length);
-
-            for (let i = 0; i < countToSpawn; i++) {
-              const lane = availableLanes[i];
-              const laneX = lane * LANE_WIDTH;
-
+            const otherLane = baseLane < 0 ? baseLane + 1 : baseLane > 0 ? baseLane - 1 : (spawnRng() < 0.5 ? -1 : 1);
+            if (maxLane >= 1 && spawnRng() < 0.55) {
               keptObjects.push({
                 id: uuidv4(),
                 type: ObjectType.OBSTACLE,
-                position: [laneX, OBSTACLE_HEIGHT / 2, spawnZ],
+                position: [otherLane * LANE_WIDTH, OBSTACLE_HEIGHT / 2, spawnZ],
                 active: true,
                 color: '#ea580c'
               });
+            }
+            hasChanges = true;
+          } else {
+            const spawnRival = level >= 2 && spawnRng() < 0.22;
 
-              // Chance for Golden Basketball on top of dummy
-              if (Math.random() < 0.35) {
+            if (spawnRival) {
+              const availableLanes: number[] = [];
+              const maxLane = Math.floor(laneCount / 2);
+              for (let i = -maxLane; i <= maxLane; i++) availableLanes.push(i);
+              availableLanes.sort(() => spawnRng() - 0.5);
+
+              // Guaranteed clear lane: always leave at least one lane open
+              const maxBlock = Math.max(1, availableLanes.length - 1);
+
+              let defenderCount = 1;
+              const p = spawnRng();
+              if (p > 0.7) defenderCount = Math.min(2, maxBlock);
+              if (p > 0.9 && availableLanes.length >= 3) defenderCount = Math.min(3, maxBlock);
+
+              for (let k = 0; k < defenderCount; k++) {
+                const lane = availableLanes[k];
                 keptObjects.push({
                   id: uuidv4(),
-                  type: ObjectType.GEM,
-                  position: [laneX, OBSTACLE_HEIGHT + 0.9, spawnZ],
+                  type: ObjectType.ALIEN,
+                  position: [lane * LANE_WIDTH, 1.2, spawnZ],
                   active: true,
-                  color: '#f59e0b',
-                  points: 100
+                  color: '#7c3aed',
+                  hasFired: false
                 });
+              }
+            } else {
+              // Standard Obstacle: Basketball D-Man Training Dummy
+              const availableLanes: number[] = [];
+              const maxLane = Math.floor(laneCount / 2);
+              for (let i = -maxLane; i <= maxLane; i++) availableLanes.push(i);
+              availableLanes.sort(() => spawnRng() - 0.5);
+
+              // Guaranteed clear lane: always leave at least one lane open
+              const maxBlock = Math.max(1, availableLanes.length - 1);
+
+              let countToSpawn = 1;
+              const p = spawnRng();
+              if (p > 0.80) countToSpawn = Math.min(3, maxBlock);
+              else if (p > 0.50) countToSpawn = Math.min(2, maxBlock);
+
+              for (let i = 0; i < countToSpawn; i++) {
+                const lane = availableLanes[i];
+                const laneX = lane * LANE_WIDTH;
+
+                keptObjects.push({
+                  id: uuidv4(),
+                  type: ObjectType.OBSTACLE,
+                  position: [laneX, OBSTACLE_HEIGHT / 2, spawnZ],
+                  active: true,
+                  color: '#ea580c'
+                });
+
+                // Chance for Golden Basketball on top of dummy
+                if (spawnRng() < 0.35) {
+                  keptObjects.push({
+                    id: uuidv4(),
+                    type: ObjectType.GEM,
+                    position: [laneX, OBSTACLE_HEIGHT + 0.9, spawnZ],
+                    active: true,
+                    color: '#f59e0b',
+                    points: 100
+                  });
+                }
               }
             }
           }
@@ -711,11 +1037,95 @@ const GameEntity: React.FC<{ data: GameObject }> = React.memo(({ data }) => {
   const groupRef = useRef<THREE.Group>(null);
   const visualRef = useRef<THREE.Group>(null);
   const shadowRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+  const rimRef = useRef<THREE.Mesh>(null);
+  const netRef = useRef<THREE.Mesh>(null);
+  const boardRef = useRef<THREE.Group>(null);
+  const boardMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const netMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
+  const punchRef = useRef(0);
+  const boardFlash = useRef(0);
   const { laneCount } = useStore();
+
+  // Hoop rim / net / backboard reaction when slammed
+  useEffect(() => {
+    const handleDunk = (e: any) => {
+      const pos = e.detail?.position;
+      if (!pos || data.type !== ObjectType.HOOP) return;
+      const dx = Math.abs(pos[0] - data.position[0]);
+      const dz = Math.abs(pos[2] - data.position[2]);
+      if (dx < 1.2 && dz < 1.2) {
+        punchRef.current = 1;
+        boardFlash.current = 1;
+      }
+    };
+    window.addEventListener('dunk-success', handleDunk);
+    return () => window.removeEventListener('dunk-success', handleDunk);
+  }, [data]);
 
   useFrame((state, delta) => {
     if (groupRef.current) {
       groupRef.current.position.set(data.position[0], 0, data.position[2]);
+    }
+
+    // Danger telegraph: pulsing ground glow under oncoming threats
+    const isTelegraphable =
+      data.type === ObjectType.OBSTACLE ||
+      data.type === ObjectType.ALIEN ||
+      data.type === ObjectType.MISSILE ||
+      data.type === ObjectType.HOOP ||
+      data.type === ObjectType.MOVING_WALL ||
+      data.type === ObjectType.SWEEPER;
+    const telegraphOn = isTelegraphable && data.position[2] > -35;
+    if (glowRef.current) {
+      if (telegraphOn) {
+        glowRef.current.visible = true;
+        const pulse = 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 7);
+        (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.10 + pulse * 0.24;
+        const s = 1 + pulse * 0.14;
+        glowRef.current.scale.set(s, s, 1);
+      } else {
+        glowRef.current.visible = false;
+      }
+    }
+
+    // Slam dunk rim punch / net wobble / backboard shake + broadcast-grade flash
+    if (punchRef.current > 0) {
+      punchRef.current = Math.max(0, punchRef.current - delta * 2.4);
+      const p = punchRef.current;
+      if (rimRef.current) {
+        rimRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 38) * 0.14 * p;
+      }
+      if (netRef.current) {
+        netRef.current.scale.set(
+          1 + Math.sin(state.clock.elapsedTime * 24) * 0.06 * p,
+          1 + Math.sin(state.clock.elapsedTime * 30) * 0.09 * p,
+          1
+        );
+        netRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 33) * 0.1 * p;
+      }
+      if (boardRef.current) {
+        boardRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 20) * 0.035 * p;
+      }
+    }
+
+    // Tempered-glass backboard ignites with a warm emissive flash + net lightens on thunder
+    if (boardFlash.current > 0) {
+      boardFlash.current = Math.max(0, boardFlash.current - delta * 3.2);
+      if (boardMatRef.current) {
+        boardMatRef.current.emissiveIntensity = boardFlash.current * 2.4;
+      }
+      if (netMatRef.current) {
+        netMatRef.current.color.set('#fff7ed');
+      }
+    } else if (netMatRef.current) {
+      netMatRef.current.color.set('#ffffff');
+    }
+
+    // Showtime halo breathes to draw the eye ahead of the golden hoop
+    if (haloRef.current) {
+      haloRef.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 6.5) * 0.09);
     }
 
     if (visualRef.current) {
@@ -731,7 +1141,7 @@ const GameEntity: React.FC<{ data: GameObject }> = React.memo(({ data }) => {
         // Defensive slide bobbing
         visualRef.current.position.y = baseHeight + Math.sin(state.clock.elapsedTime * 4) * 0.12;
         visualRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 2) * 0.2;
-      } else if (data.type !== ObjectType.OBSTACLE) {
+      } else if (data.type !== ObjectType.OBSTACLE && data.type !== ObjectType.MOVING_WALL && data.type !== ObjectType.SWEEPER) {
         // Basketball / Letter Bobbing & Spinning
         visualRef.current.rotation.y += delta * 3.5;
         const bobOffset = Math.sin(state.clock.elapsedTime * 4 + data.position[0]) * 0.12;
@@ -766,6 +1176,22 @@ const GameEntity: React.FC<{ data: GameObject }> = React.memo(({ data }) => {
           <meshBasicMaterial color="#0f172a" opacity={0.32} transparent />
         </mesh>
       )}
+
+      {/* Danger Telegraph Glow (lights up as dangers approach) */}
+      <mesh ref={glowRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.045, 0]} geometry={TELEGRAPH_GEO} visible={false}>
+        <meshBasicMaterial
+          color={
+            data.type === ObjectType.ALIEN ? '#a78bfa' :
+            data.type === ObjectType.MISSILE ? '#f87171' :
+            data.type === ObjectType.HOOP ? (data.isShowtime ? '#ffd700' : '#fbbf24') :
+            data.type === ObjectType.MOVING_WALL ? '#fb923c' :
+            data.type === ObjectType.SWEEPER ? '#facc15' : '#fb923c'
+          }
+          transparent opacity={0}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
 
       <group ref={visualRef} position={[0, data.position[1], 0]}>
         {/* --- PRO LOCKER ROOM PORTAL --- */}
@@ -809,10 +1235,19 @@ const GameEntity: React.FC<{ data: GameObject }> = React.memo(({ data }) => {
             </mesh>
 
             {/* Backboard Assembly at dunk height */}
-            <group position={[0, 2.85, 0]}>
+            <group ref={boardRef} position={[0, 2.85, 0]}>
               {/* Tempered Glass Backboard */}
               <mesh geometry={HOOP_BACKBOARD_GEO} castShadow>
-                <meshStandardMaterial color="#ffffff" transparent opacity={0.7} roughness={0.1} metalness={0.2} />
+                <meshStandardMaterial
+                  ref={boardMatRef}
+                  color="#ffffff"
+                  transparent
+                  opacity={0.7}
+                  roughness={0.1}
+                  metalness={0.2}
+                  emissive={data.isShowtime ? '#ffd700' : '#ea580c'}
+                  emissiveIntensity={data.isShowtime ? 0.55 : 0}
+                />
               </mesh>
               {/* Inner Target Square */}
               <mesh position={[0, -0.15, 0.03]} geometry={HOOP_TARGET_GEO}>
@@ -825,19 +1260,37 @@ const GameEntity: React.FC<{ data: GameObject }> = React.memo(({ data }) => {
               </mesh>
 
               {/* Breakaway Orange Steel Rim */}
-              <mesh position={[0, -0.4, 0.42]} rotation={[Math.PI / 2, 0, 0]} geometry={HOOP_RIM_GEO} castShadow>
+              <mesh ref={rimRef} position={[0, -0.4, 0.42]} rotation={[Math.PI / 2, 0, 0]} geometry={HOOP_RIM_GEO} castShadow>
                 <meshStandardMaterial color="#ff5500" metalness={0.3} roughness={0.2} emissive="#ff4400" emissiveIntensity={0.5} />
               </mesh>
 
               {/* White Braided Nylon Net */}
-              <mesh position={[0, -0.68, 0.42]} geometry={HOOP_NET_GEO}>
-                <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.8} />
+              <mesh ref={netRef} position={[0, -0.68, 0.42]} geometry={HOOP_NET_GEO}>
+                <meshBasicMaterial ref={netMatRef} color="#ffffff" wireframe transparent opacity={0.8} />
               </mesh>
 
               {/* Pulsating Golden Slam Zone Halo */}
               <mesh position={[0, -0.4, 0.42]} rotation={[Math.PI / 2, 0, 0]} geometry={HOOP_HALO_GEO}>
-                <meshBasicMaterial color="#f59e0b" transparent opacity={0.65} />
+                <meshBasicMaterial color={data.isShowtime ? '#ffd700' : '#f59e0b'} transparent opacity={data.isShowtime ? 0.95 : 0.65} />
               </mesh>
+
+              {/* SHOWTIME LANE: outer gold halo + pulsing beacon lamp */}
+              {data.isShowtime && (
+                <group>
+                  <mesh ref={haloRef} position={[0, -0.4, 0.42]} rotation={[Math.PI / 2, 0, 0]} geometry={SHOWTIME_HALO_GEO}>
+                    <meshBasicMaterial color="#ffd700" transparent opacity={0.85} />
+                  </mesh>
+                  <mesh position={[0, 0.7, 0]}>
+                    <boxGeometry args={[0.5, 0.4, 0.18]} />
+                    <meshBasicMaterial color="#0f172a" />
+                  </mesh>
+                  <mesh position={[0, 0.7, 0.1]}>
+                    <planeGeometry args={[0.34, 0.24]} />
+                    <meshBasicMaterial color="#ffd700" />
+                  </mesh>
+                </group>
+              )}
+
             </group>
           </group>
         )}
@@ -869,6 +1322,37 @@ const GameEntity: React.FC<{ data: GameObject }> = React.memo(({ data }) => {
             {/* Head */}
             <mesh position={[0, 1.62, 0]} geometry={DUMMY_HEAD_GEO} castShadow>
               <meshStandardMaterial color="#0f172a" roughness={0.5} />
+            </mesh>
+          </group>
+        )}
+
+        {/* --- MOVING WALL (LEVEL 2+) --- */}
+        {data.type === ObjectType.MOVING_WALL && (
+          <group>
+            {/* Hazard Body */}
+            <mesh geometry={WALL_GEO} castShadow>
+              <meshStandardMaterial color="#7f1d1d" roughness={0.55} />
+            </mesh>
+            {/* Hazard Warning Stripes */}
+            <mesh position={[0, 0, 0.15]} geometry={WALL_STRIPE_GEO} rotation={[Math.PI / 2, 0, 0]}>
+              <meshBasicMaterial color="#fb923c" />
+            </mesh>
+          </group>
+        )}
+
+        {/* --- GROUND SWEEPER (LEVEL 3+) --- */}
+        {data.type === ObjectType.SWEEPER && (
+          <group>
+            {/* Low-Sweeping Hazard Beam */}
+            <mesh geometry={SWEEP_GEO} rotation={[0, 0, Math.PI / 2]} castShadow>
+              <meshStandardMaterial color="#713f12" roughness={0.5} />
+            </mesh>
+            {/* Warning End Caps */}
+            <mesh position={[LANE_WIDTH * 1.6, 0, 0]} geometry={SWEEP_END_GEO} castShadow>
+              <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.5} roughness={0.35} />
+            </mesh>
+            <mesh position={[-LANE_WIDTH * 1.6, 0, 0]} geometry={SWEEP_END_GEO} castShadow>
+              <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.5} roughness={0.35} />
             </mesh>
           </group>
         )}
