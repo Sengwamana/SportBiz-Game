@@ -167,7 +167,6 @@ interface GameState {
 
   // Match-start run-in cinematic
   beginIntro: () => void;
-  endIntro: () => void;
   
   // Shop / Abilities
   buyItem: (type: 'DOUBLE_JUMP' | 'MAX_LIFE' | 'HEAL' | 'IMMORTAL', cost: number) => boolean;

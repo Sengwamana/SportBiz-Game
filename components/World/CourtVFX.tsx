@@ -143,7 +143,7 @@ export const CourtVFX: React.FC = () => {
           ...r,
           radius: r.radius + safeDelta * 2.8,
           opacity: r.opacity - safeDelta * 3.0,
-          position: [r.position[0], r.position[1], r.position[2] + speed * safeDelta],
+          position: [r.position[0], r.position[1], r.position[2] + speed * safeDelta] as [number, number, number],
         }))
         .filter(r => r.opacity > 0.02 && r.radius < r.maxRadius);
     });
@@ -155,7 +155,7 @@ export const CourtVFX: React.FC = () => {
         .map(s => ({
           ...s,
           opacity: s.opacity - safeDelta * 2.0,
-          position: [s.position[0], s.position[1], s.position[2] + speed * safeDelta],
+          position: [s.position[0], s.position[1], s.position[2] + speed * safeDelta] as [number, number, number],
         }))
         .filter(s => s.opacity > 0.02);
     });
@@ -168,7 +168,7 @@ export const CourtVFX: React.FC = () => {
           ...d,
           scale: d.scale + safeDelta * 3.4,
           opacity: d.opacity - safeDelta * 1.6,
-          position: [d.position[0], d.position[1], d.position[2] + speed * safeDelta],
+          position: [d.position[0], d.position[1], d.position[2] + speed * safeDelta] as [number, number, number],
         }))
         .filter(d => d.opacity > 0.02);
     });

@@ -39,7 +39,7 @@ export const Effects: React.FC = () => {
   }
 
   return (
-    <EffectComposer disableNormalPass multisampling={0}>
+    <EffectComposer enableNormalPass={false} multisampling={0}>
       {/* Neon bloom for stadium lights & glowing collectibles */}
       <Bloom
         luminanceThreshold={0.88}

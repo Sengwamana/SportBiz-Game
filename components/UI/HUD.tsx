@@ -358,7 +358,7 @@ const MenuHero: React.FC<{ skinId: string }> = ({ skinId }) => {
   );
 };
 
-const MenuScreen: React.FC<{ startGame: () => void; isMuted: boolean; onToggleMute: () => void }> = ({ startGame, isMuted, onToggleMute }) => {
+const MenuScreen: React.FC<{ startGame: () => void; isMuted: boolean; onToggleMute: (e: React.MouseEvent) => void }> = ({ startGame, isMuted, onToggleMute }) => {
   const { skinId, setSkin, bestDistance, dailyBest, playDailyChallenge } = useStore();
   const unlockedPref = bestDistance;
   const unlockedSkins = SKINS.filter(s => unlockedPref >= s.unlockAtBest);
