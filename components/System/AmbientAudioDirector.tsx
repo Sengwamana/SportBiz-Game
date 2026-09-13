@@ -8,6 +8,7 @@ import { useStore } from '../../store';
 import { GameStatus, RUN_SPEED_BASE } from '../../types';
 import { ambientAudio } from './AmbientAudio';
 import { audio } from './Audio';
+import { announcer } from './Announcer';
 
 /**
  * AmbientAudioDirector
@@ -23,6 +24,9 @@ export const AmbientAudioDirector: React.FC = () => {
   useEffect(() => {
     if (status !== prevStatus.current) {
       ambientAudio.onGameStatusChange(status);
+      if (status === GameStatus.GAME_OVER) announcer.onGameOver();
+      if (status === GameStatus.VICTORY) announcer.onVictory();
+      if (status === GameStatus.MENU) announcer.reset();
       prevStatus.current = status;
     }
   }, [status]);
@@ -32,6 +36,7 @@ export const AmbientAudioDirector: React.FC = () => {
     if (isImmortalityActive && !prevOnFire.current) {
       ambientAudio.triggerCheerSwell(1.0);
       ambientAudio.triggerArenaFanfare();
+      announcer.onFire();
     }
     prevOnFire.current = isImmortalityActive;
   }, [isImmortalityActive]);

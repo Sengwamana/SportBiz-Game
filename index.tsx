@@ -18,3 +18,10 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+// Dismiss boot splash once the bundle has mounted
+const splash = document.getElementById('boot-splash');
+if (splash) {
+  splash.style.opacity = '0';
+  setTimeout(() => splash.remove(), 600);
+}
